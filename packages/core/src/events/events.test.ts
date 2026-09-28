@@ -12,7 +12,15 @@ import {
   eventInput,
   type TestContext,
 } from '../testing/harness';
-import { createEvent, getEventView, listOwnedEvents, transitionEvent, updateEvent } from './events';
+import { addStaff } from '../memberships/memberships';
+import {
+  createEvent,
+  getEventView,
+  listOwnedEvents,
+  listRecentEventActivity,
+  transitionEvent,
+  updateEvent,
+} from './events';
 import { utcToLocal } from './schemas';
 
 async function activityTypes(ctx: TestContext, eventId: string) {
@@ -312,5 +320,27 @@ describe.skipIf(!databaseUrl)('events', () => {
     const view = await getEventView(ctx, owner.userId, live);
     expect(view.allowedActions).toEqual(['complete', 'cancel']);
     expect(view.canEdit).toBe(true);
+  });
+
+  it('lists recent event activity for the owner only, newest first, with staff names', async () => {
+    // The owner's own membership entry is left out; the list starts at creation.
+    const owner = await createOwner(ctx);
+    const other = await createOwner(ctx);
+    const { eventId } = await createEvent(ctx, owner.userId, eventInput(ctx));
+    await addStaff(ctx, owner.userId, eventId, { displayName: 'منيرة' });
+    await transitionEvent(ctx, owner.userId, eventId, 'activate');
+
+    const items = await listRecentEventActivity(ctx, owner.userId, eventId, 3);
+    expect(items.map((i) => i.type)).toEqual([
+      'event.activated',
+      'event_member.added',
+      'event.created',
+    ]);
+    expect(items[1]).toMatchObject({ memberName: 'منيرة', bySchedule: false });
+    expect(items[0]!.memberName).toBeNull();
+
+    await expect(listRecentEventActivity(ctx, other.userId, eventId)).rejects.toSatisfy(
+      rejectsWith('not_found'),
+    );
   });
 });

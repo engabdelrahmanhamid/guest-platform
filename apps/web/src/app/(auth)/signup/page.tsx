@@ -1,13 +1,19 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { ActionForm, Field, SubmitButton } from '@/components/forms';
 import { signUpAction } from '../actions';
 
+export const metadata: Metadata = { title: 'إنشاء حساب' };
+
 export default async function SignUpPage() {
   const t = await getTranslations('auth');
   return (
     <>
-      <h1>{t('signupTitle')}</h1>
+      <header>
+        <h1>{t('signupTitle')}</h1>
+        <p>{t('signupSubtitle')}</p>
+      </header>
       <ActionForm action={signUpAction}>
         <Field name="fullName" label={t('fullName')} autoComplete="name" required />
         <Field name="email" type="email" label={t('email')} autoComplete="email" required />
@@ -19,9 +25,9 @@ export default async function SignUpPage() {
           autoComplete="new-password"
           required
         />
-        <SubmitButton>{t('signupSubmit')}</SubmitButton>
+        <SubmitButton block>{t('signupSubmit')}</SubmitButton>
       </ActionForm>
-      <p className="small">
+      <p className="alt">
         {t('haveAccount')} <Link href="/login">{t('loginTitle')}</Link>
       </p>
     </>

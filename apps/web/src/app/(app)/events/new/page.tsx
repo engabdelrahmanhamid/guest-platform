@@ -1,29 +1,43 @@
 import { EVENT_TYPES_BY_CATEGORY, type EventCategory } from '@gp/core';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
+import { Icon, type IconName } from '@/components/icons';
+import { CreateStepper } from '@/components/stepper';
 
-export default async function ChooseEventTypePage() {
+export const metadata: Metadata = { title: 'مناسبة جديدة' };
+
+const CATEGORY_ICON: Record<EventCategory, IconName> = { private: 'home', business: 'building' };
+
+/** Create, step 1a: private or business. */
+export default async function ChooseCategoryPage() {
   const t = await getTranslations();
   return (
-    <>
-      <h1>{t('eventForm.chooseTitle')}</h1>
-      <p className="muted">{t('eventForm.chooseSubtitle')}</p>
-      {(Object.keys(EVENT_TYPES_BY_CATEGORY) as EventCategory[]).map((category) => (
-        <section key={category} className="card">
-          <h2>{t(`category.${category}`)}</h2>
-          <div className="choice-grid">
-            {EVENT_TYPES_BY_CATEGORY[category].map((type) => (
-              <Link
-                key={type}
-                href={`/events/new/details?category=${category}&type=${type}`}
-                className="choice"
-              >
-                {t(`eventType.${type}`)}
-              </Link>
-            ))}
-          </div>
-        </section>
-      ))}
-    </>
+    <div className="wizard">
+      <CreateStepper current={1} />
+      <div className="page-head">
+        <div className="titles">
+          <h1>{t('eventForm.categoryTitle')}</h1>
+          <p className="lead">{t('eventForm.categorySubtitle')}</p>
+        </div>
+      </div>
+      <ul className="category-choices" role="list">
+        {(Object.keys(EVENT_TYPES_BY_CATEGORY) as EventCategory[]).map((category) => (
+          <li key={category}>
+            <Link href={`/events/new/type?category=${category}`} className="category-choice">
+              <span className="glyph">
+                <Icon name={CATEGORY_ICON[category]} />
+              </span>
+              <h2>{t(`category.${category}`)}</h2>
+              <p>{t(`categoryHint.${category}`)}</p>
+              <span className="go" aria-hidden="true">
+                {t('eventForm.choose')}
+                <Icon name="arrow" />
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

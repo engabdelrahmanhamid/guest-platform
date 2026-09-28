@@ -29,6 +29,18 @@ The dev scripts don't load `.env` automatically. Export the variables in your sh
   authentication at `/admin/mfa` on first visit.
 - Worker health: `GET http://localhost:8081/health` (`WORKER_HEALTH_PORT`).
 
+### Demo data for product review
+
+`pnpm demo:seed` fills an empty database with a demo owner that has one event in each lifecycle
+state (draft, active, live, completed, cancelled, archived) plus staff, and a demo platform admin.
+Use a separate database so test accounts don't show up in the screens. It refuses to run in
+production and does nothing if the demo accounts already exist.
+
+| Account         | Password           | Notes                                    |
+| --------------- | ------------------ | ---------------------------------------- |
+| owner@demo.test | `demo-review-2026` | Event owner                              |
+| admin@demo.test | `demo-review-2026` | Platform admin; enrolls 2FA on first use |
+
 ## Checks
 
 ```sh

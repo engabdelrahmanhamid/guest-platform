@@ -1,5 +1,5 @@
-import { eventMemberships, events, users, workspaceMembers } from '@gp/db/schema';
-import { and, desc, eq, inArray, ne } from 'drizzle-orm';
+import { activity, eventMemberships, events, users, workspaceMembers } from '@gp/db/schema';
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { type Actor, recordActivity } from '../activity/activity';
 import { type EventRow, requireEventAccess } from '../authorization/authorization';
@@ -282,6 +282,56 @@ export async function getEventView(ctx: CoreContext, userId: string, eventId: st
   };
 }
 
+/** Event activity shown to the owner. Only the activity type, time and a few safe fields. */
+export interface EventActivityItem {
+  id: number;
+  type: string;
+  at: Date;
+  bySchedule: boolean;
+  /** Display name of the staff member an `event_member.*` entry is about. */
+  memberName: string | null;
+}
+
+/** The latest activity on an event, newest first. Owner only (`activity.view`). */
+export async function listRecentEventActivity(
+  ctx: CoreContext,
+  userId: string,
+  eventId: string,
+  limit = 8,
+): Promise<EventActivityItem[]> {
+  await requireEventAccess(ctx.db, userId, eventId, 'activity.view');
+  const rows = await ctx.db
+    .select({
+      id: activity.id,
+      type: activity.type,
+      at: activity.createdAt,
+      actorType: activity.actorType,
+      data: activity.data,
+      memberName: eventMemberships.displayName,
+    })
+    .from(activity)
+    .leftJoin(
+      eventMemberships,
+      sql`${eventMemberships.id}::text = ${activity.data}->>'membershipId'`,
+    )
+    .where(
+      and(
+        eq(activity.eventId, eventId),
+        // The owner's own membership is recorded with the event's creation; it adds nothing.
+        sql`not (${activity.type} = 'event_member.added' and ${activity.data}->>'role' = 'owner')`,
+      ),
+    )
+    .orderBy(desc(activity.id))
+    .limit(limit);
+  return rows.map((r) => ({
+    id: r.id,
+    type: r.type,
+    at: r.at,
+    bySchedule: r.actorType === 'system',
+    memberName: r.type.startsWith('event_member.') ? r.memberName : null,
+  }));
+}
+
 export const DASHBOARD_FILTERS = [
   'all',
   'draft',
@@ -307,6 +357,8 @@ export async function listOwnedEvents(db: DbOrTx, userId: string, filter: Dashbo
       timezone: events.timezone,
       status: events.status,
       type: events.type,
+      city: events.city,
+      venueName: events.venueName,
       disabledAt: events.disabledAt,
     })
     .from(events)

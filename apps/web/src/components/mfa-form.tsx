@@ -23,9 +23,9 @@ export function MfaForm({
   if (!enrolled && !secret) {
     return (
       <>
-        <p>{t('mfaEnrollIntro')}</p>
+        <p className="muted">{t('mfaEnrollIntro')}</p>
         <form action={startAction}>
-          <SubmitButton>{t('mfaStart')}</SubmitButton>
+          <SubmitButton block>{t('mfaStart')}</SubmitButton>
         </form>
       </>
     );
@@ -34,16 +34,17 @@ export function MfaForm({
     <>
       {secret ? (
         <>
-          <p>{t('mfaEnrollIntro')}</p>
-          <p>
-            {t('mfaSecret')}: <code className="ltr">{secret.match(/.{1,4}/g)?.join(' ')}</code>
-          </p>
-          <p>
-            <a href={started.data?.uri}>{t('mfaOpenApp')}</a>
-          </p>
+          <p className="muted">{t('mfaEnrollIntro')}</p>
+          <div className="stack-sm">
+            <span className="label">{t('mfaSecret')}</span>
+            <div className="secret">{secret.match(/.{1,4}/g)?.join(' ')}</div>
+            <a href={started.data?.uri} className="small">
+              {t('mfaOpenApp')}
+            </a>
+          </div>
         </>
       ) : (
-        <p>{t('mfaVerifyIntro')}</p>
+        <p className="muted center">{t('mfaVerifyIntro')}</p>
       )}
       <ActionForm action={confirm}>
         <Field
@@ -55,7 +56,7 @@ export function MfaForm({
           className="ltr"
           required
         />
-        <SubmitButton>{t('mfaSubmit')}</SubmitButton>
+        <SubmitButton block>{t('mfaSubmit')}</SubmitButton>
       </ActionForm>
     </>
   );

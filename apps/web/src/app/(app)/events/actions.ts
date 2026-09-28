@@ -95,7 +95,9 @@ export async function updateEventAction(
   } catch (err) {
     return mapFieldErrors(toFormState(err, data));
   }
-  redirect(`/events/${eventId}`);
+  // The workspace header shows the name, date and place, so refresh the whole layout.
+  revalidatePath(`/events/${eventId}`, 'layout');
+  redirect(`/events/${eventId}/settings?saved=1`);
 }
 
 export async function transitionAction(
@@ -115,6 +117,8 @@ export async function transitionAction(
   } catch (err) {
     return toFormState(err, data);
   }
+  // The workspace header (status, next action) lives in the layout, so refresh all of it.
+  revalidatePath(`/events/${eventId}`, 'layout');
   // The action buttons may be gone after the change (e.g. archived), so the confirmation
   // travels in the URL rather than in the form's state.
   redirect(`/events/${eventId}?done=${action}`);
@@ -131,7 +135,7 @@ export async function addStaffAction(
   } catch (err) {
     return toFormState(err, data);
   }
-  revalidatePath(`/events/${eventId}`);
+  revalidatePath(`/events/${eventId}`, 'layout');
   return {};
 }
 
@@ -158,6 +162,6 @@ export async function staffChangeAction(
   } catch (err) {
     return toFormState(err);
   }
-  revalidatePath(`/events/${eventId}`);
+  revalidatePath(`/events/${eventId}`, 'layout');
   return {};
 }

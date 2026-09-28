@@ -1,7 +1,10 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { ActionForm, Field, SubmitButton } from '@/components/forms';
 import { resetPasswordAction } from '../actions';
+
+export const metadata: Metadata = { title: 'كلمة مرور جديدة' };
 
 export default async function ResetPasswordPage({
   searchParams,
@@ -12,7 +15,10 @@ export default async function ResetPasswordPage({
   const t = await getTranslations('auth');
   return (
     <>
-      <h1>{t('resetTitle')}</h1>
+      <header>
+        <h1>{t('resetTitle')}</h1>
+        <p>{t('resetSubtitle')}</p>
+      </header>
       <ActionForm action={resetPasswordAction}>
         <input type="hidden" name="token" value={token} />
         <Field
@@ -23,10 +29,10 @@ export default async function ResetPasswordPage({
           autoComplete="new-password"
           required
         />
-        <SubmitButton>{t('resetSubmit')}</SubmitButton>
+        <SubmitButton block>{t('resetSubmit')}</SubmitButton>
       </ActionForm>
-      <p className="small">
-        <Link href="/login">{t('loginTitle')}</Link>
+      <p className="alt">
+        <Link href="/login">{t('backToLogin')}</Link>
       </p>
     </>
   );

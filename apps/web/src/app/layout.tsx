@@ -2,17 +2,21 @@ import type { Metadata } from 'next';
 import { IBM_Plex_Sans_Arabic } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import type { ReactNode } from 'react';
-import './globals.css';
+import '../styles/tokens.css';
+import '../styles/base.css';
+import '../styles/components.css';
+import '../styles/shell.css';
+import '../styles/pages.css';
 
 const font = IBM_Plex_Sans_Arabic({
   subsets: ['arabic', 'latin'],
-  weight: ['400', '600', '700'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-arabic',
   display: 'swap',
 });
 
 export const metadata: Metadata = {
-  title: 'منصة الضيوف',
+  title: { default: 'منصة الضيوف', template: '%s · منصة الضيوف' },
   robots: { index: false, follow: false },
 };
 

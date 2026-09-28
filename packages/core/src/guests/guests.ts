@@ -1,5 +1,5 @@
-import { activity, eventMemberships, guestGroups, guests } from '@gp/db/schema';
-import { and, asc, count, desc, eq, inArray, isNull, lt, ne, sql, type SQL } from 'drizzle-orm';
+import { activity, eventMemberships, guestGroups, guests, invitations, rsvps } from '@gp/db/schema';
+import { and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { type ActivityInput, recordActivities, recordActivity } from '../activity/activity';
 import type { EventAccess } from '../authorization/authorization';
 import type { CoreContext, DbOrTx } from '../shared/context';
@@ -8,6 +8,8 @@ import { newId } from '../shared/ids';
 import { phoneSearchDigits } from '../shared/phone';
 import { escapeLike, searchForm } from '../shared/text';
 import { parseInput } from '../shared/validation';
+import { issuePass, revokeActivePass, revokeActivePasses } from '../lifecycle/passes';
+import { createGuestLifecycle } from '../lifecycle/records';
 import { requireGuestManagement, requireGuestView } from './access';
 import {
   cancelInputSchema,
@@ -121,14 +123,22 @@ export async function addGuest(
       createdAt: now,
       updatedAt: now,
     });
-    await recordActivity(tx, {
-      type: 'guest.created',
+    const lifecycle = await createGuestLifecycle(tx, [{ id, eventId }], {
       actor,
-      eventId,
       workspaceId: event.workspaceId,
-      guestId: id,
-      data: { source: 'manual', duplicateAcknowledged: duplicates.length > 0 },
+      now,
     });
+    await recordActivities(tx, [
+      {
+        type: 'guest.created',
+        actor,
+        eventId,
+        workspaceId: event.workspaceId,
+        guestId: id,
+        data: { source: 'manual', duplicateAcknowledged: duplicates.length > 0 },
+      },
+      ...lifecycle,
+    ]);
     return { status: 'saved', guestId: id };
   });
 }
@@ -175,6 +185,9 @@ export async function updateGuest(
     if (!changed.length && !groupChanged && !companionsChanged) {
       return { status: 'saved', guestId, changed: false };
     }
+
+    if (companionsChanged)
+      await assertAllowanceCoversAnswers(tx, [guestId], next.allowedCompanions);
 
     let duplicateAcknowledged = false;
     if (next.phoneE164 !== g.phoneE164) {
@@ -237,14 +250,22 @@ export async function cancelGuest(
       .update(guests)
       .set({ status: 'cancelled', cancelledAt: now, cancelReason: reason || null, updatedAt: now })
       .where(eq(guests.id, guestId));
-    await recordActivity(tx, {
-      type: 'guest.cancelled',
+    const revoked = await revokeActivePass(tx, g, 'guest_cancelled', {
       actor,
-      eventId,
       workspaceId: event.workspaceId,
-      guestId,
-      data: { withReason: Boolean(reason) },
+      now,
     });
+    await recordActivities(tx, [
+      {
+        type: 'guest.cancelled',
+        actor,
+        eventId,
+        workspaceId: event.workspaceId,
+        guestId,
+        data: { withReason: Boolean(reason) },
+      },
+      ...(revoked.activity ? [revoked.activity] : []),
+    ]);
     return { changed: true };
   });
 }
@@ -260,34 +281,72 @@ export async function restoreGuest(
     const { event, actor } = await requireGuestManagement(tx, userId, eventId, { forUpdate: true });
     const g = await lockGuest(tx, eventId, guestId);
     if (g.status === 'active') return { changed: false };
+    const now = ctx.now();
     await tx
       .update(guests)
-      .set({ status: 'active', cancelledAt: null, cancelReason: null, updatedAt: ctx.now() })
+      .set({ status: 'active', cancelledAt: null, cancelReason: null, updatedAt: now })
       .where(eq(guests.id, guestId));
-    await recordActivity(tx, {
-      type: 'guest.restored',
-      actor,
-      eventId,
-      workspaceId: event.workspaceId,
-      guestId,
-    });
+    const entries: ActivityInput[] = [
+      { type: 'guest.restored', actor, eventId, workspaceId: event.workspaceId, guestId },
+    ];
+    // The old pass stays revoked. A guest who had confirmed gets a new pass with a new token.
+    const [answer] = await tx
+      .select({ status: rsvps.status })
+      .from(rsvps)
+      .where(eq(rsvps.guestId, guestId));
+    if (answer?.status === 'confirmed') {
+      const issued = await issuePass(tx, g, 'restored', {
+        actor,
+        workspaceId: event.workspaceId,
+        now,
+      });
+      entries.push(issued.activity);
+    }
+    await recordActivities(tx, entries);
     return { changed: true };
   });
 }
 
-export type HardDeleteBlock = 'invitation_opened' | 'messaged' | 'checked_in';
+export type HardDeleteBlock =
+  'invitation_shared' | 'invitation_opened' | 'responded' | 'checked_in';
 
 /**
  * The one place that decides whether a guest may be removed outright rather than cancelled.
- * In phase 2 nothing about a guest has left the platform yet, so every guest may be deleted.
- * Later phases add their checks here (link shared or opened, message sent, checked in) and
- * every delete path already goes through it.
+ * Once the invitation has left the platform (shared or opened) or the guest has answered, the
+ * guest can only be cancelled, so their history stays. Phase 4 adds "checked in".
  */
 export async function canHardDeleteGuest(
-  _db: DbOrTx,
-  _guest: GuestRow,
+  db: DbOrTx,
+  guest: GuestRow,
 ): Promise<{ allowed: true } | { allowed: false; reason: HardDeleteBlock }> {
+  const [row] = await db
+    .select({
+      shareCount: invitations.shareCount,
+      openedAt: invitations.openedAt,
+      rsvp: rsvps.status,
+    })
+    .from(guests)
+    .leftJoin(invitations, eq(invitations.guestId, guests.id))
+    .leftJoin(rsvps, eq(rsvps.guestId, guests.id))
+    .where(eq(guests.id, guest.id));
+  if (row?.openedAt) return { allowed: false, reason: 'invitation_opened' };
+  if ((row?.shareCount ?? 0) > 0) return { allowed: false, reason: 'invitation_shared' };
+  if (row?.rsvp && row.rsvp !== 'pending') return { allowed: false, reason: 'responded' };
   return { allowed: true };
+}
+
+/** Lowering an allowance below what a guest already confirmed would break their answer. */
+async function assertAllowanceCoversAnswers(tx: DbOrTx, guestIds: string[], allowance: number) {
+  const [over] = await tx
+    .select({ n: count() })
+    .from(rsvps)
+    .where(and(inArray(rsvps.guestId, guestIds), gt(rsvps.companionCount, allowance)));
+  if (Number(over?.n ?? 0) > 0) {
+    throw new DomainError('allowance_below_response', undefined, {
+      guests: Number(over!.n),
+      fields: { allowedCompanions: 'below_response' },
+    });
+  }
 }
 
 /**
@@ -330,6 +389,12 @@ function listFilters(eventId: string, query: GuestListQuery): SQL | undefined {
   if (query.source !== 'all') where.push(eq(guests.source, query.source));
   if (query.group === 'none') where.push(isNull(guests.groupId));
   else if (query.group !== 'all') where.push(eq(guests.groupId, query.group));
+  if (query.rsvp !== 'all') where.push(eq(rsvps.status, query.rsvp));
+  if (query.invite === 'not_shared')
+    where.push(eq(invitations.shareCount, 0), isNull(invitations.openedAt));
+  if (query.invite === 'shared')
+    where.push(gt(invitations.shareCount, 0), isNull(invitations.openedAt));
+  if (query.invite === 'opened') where.push(sql`${invitations.openedAt} IS NOT NULL`);
 
   const q = query.q.trim();
   if (q) {
@@ -354,6 +419,10 @@ export interface GuestListItem {
   source: GuestRow['source'];
   status: GuestRow['status'];
   createdAt: Date;
+  rsvpStatus: 'pending' | 'confirmed' | 'declined';
+  companionCount: number;
+  shareCount: number;
+  openedAt: Date | null;
 }
 
 /** One page of the guest list with filters, search and sorting applied on the database. */
@@ -372,9 +441,12 @@ export async function listGuests(
   await requireGuestView(ctx.db, userId, eventId);
   const query = guestListQuerySchema.parse(rawQuery);
   const where = listFilters(eventId, query);
-  const [{ total }] = (await ctx.db.select({ total: count() }).from(guests).where(where)) as [
-    { total: number },
-  ];
+  const [{ total }] = (await ctx.db
+    .select({ total: count() })
+    .from(guests)
+    .innerJoin(rsvps, eq(rsvps.guestId, guests.id))
+    .innerJoin(invitations, eq(invitations.guestId, guests.id))
+    .where(where)) as [{ total: number }];
   const pages = Math.max(1, Math.ceil(total / query.pageSize));
   const page = Math.min(query.page, pages);
   const order =
@@ -394,8 +466,14 @@ export async function listGuests(
       source: guests.source,
       status: guests.status,
       createdAt: guests.createdAt,
+      rsvpStatus: rsvps.status,
+      companionCount: rsvps.companionCount,
+      shareCount: invitations.shareCount,
+      openedAt: invitations.openedAt,
     })
     .from(guests)
+    .innerJoin(rsvps, eq(rsvps.guestId, guests.id))
+    .innerJoin(invitations, eq(invitations.guestId, guests.id))
     .leftJoin(guestGroups, eq(guestGroups.id, guests.groupId))
     .where(where)
     .orderBy(...order)
@@ -454,6 +532,8 @@ export interface GuestActivityItem {
   at: Date;
   byName: string | null;
   bySchedule: boolean;
+  /** The guest acted themselves, through their invitation link. */
+  byGuest: boolean;
   data: Record<string, unknown>;
 }
 
@@ -497,6 +577,7 @@ export async function listGuestActivity(
       at: r.at,
       byName: r.byName,
       bySchedule: r.actorType === 'system',
+      byGuest: r.actorType === 'guest',
       data: (r.data ?? {}) as Record<string, unknown>,
     })),
     more: rows.length > limit,
@@ -537,7 +618,11 @@ async function bulk(
     const selected = await lockSelection(tx, eventId, ids);
     const entries = await apply(tx, access, selected, ctx.now());
     await recordActivities(tx, entries);
-    return { selected: selected.length, changed: entries.length };
+    // Pass revocations ride along with cancellations; they are not extra guests changed.
+    return {
+      selected: selected.length,
+      changed: entries.filter((e) => !e.type.startsWith('pass.')).length,
+    };
   });
 }
 
@@ -608,14 +693,24 @@ export async function bulkCancel(
           ),
         );
     }
-    return active.map((g) => ({
-      type: 'guest.cancelled' as const,
-      actor,
+    const revoked = await revokeActivePasses(
+      tx,
       eventId,
-      workspaceId: event.workspaceId,
-      guestId: g.id,
-      data: { withReason: Boolean(reason), bulk: true },
-    }));
+      active.map((g) => g.id),
+      'guest_cancelled',
+      { actor, workspaceId: event.workspaceId, now },
+    );
+    return [
+      ...active.map((g) => ({
+        type: 'guest.cancelled' as const,
+        actor,
+        eventId,
+        workspaceId: event.workspaceId,
+        guestId: g.id,
+        data: { withReason: Boolean(reason), bulk: true },
+      })),
+      ...revoked,
+    ];
   });
 }
 
@@ -636,6 +731,11 @@ export async function bulkSetCompanions(
   return bulk(ctx, userId, eventId, guestIds, async (tx, { event, actor }, selected, now) => {
     const changing = selected.filter((g) => g.allowedCompanions !== to);
     if (changing.length) {
+      await assertAllowanceCoversAnswers(
+        tx,
+        changing.map((g) => g.id),
+        to,
+      );
       await tx
         .update(guests)
         .set({ allowedCompanions: to, updatedAt: now })

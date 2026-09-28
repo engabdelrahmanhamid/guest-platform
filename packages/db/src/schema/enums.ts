@@ -56,3 +56,27 @@ export const importStatus = pgEnum('import_status', [
 ]);
 export const importRowState = pgEnum('import_row_state', ['ready', 'needs_review', 'invalid']);
 export const importDecision = pgEnum('import_decision', ['import', 'skip', 'add_anyway']);
+/** Only `not_sent` and `shared` occur in the pilot; the rest belong to a future automated channel. */
+export const invitationDelivery = pgEnum('invitation_delivery', [
+  'not_sent',
+  'queued',
+  'shared',
+  'sent',
+  'delivered',
+  'failed',
+]);
+export const rsvpStatus = pgEnum('rsvp_status', ['pending', 'confirmed', 'declined']);
+/** Stored pass states. Expiry is derived from the event, never stored. */
+export const passStatus = pgEnum('pass_status', ['active', 'revoked']);
+export const passRevokeReason = pgEnum('pass_revoke_reason', [
+  'declined',
+  'guest_cancelled',
+  'replaced',
+]);
+export const invitationTemplate = pgEnum('invitation_template', [
+  'elegant',
+  'minimal',
+  'formal',
+  'celebration',
+]);
+export const messageType = pgEnum('message_type', ['invitation', 'reminder']);

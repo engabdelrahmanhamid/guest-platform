@@ -100,8 +100,6 @@ export const eventDetailsSchema = z
         .optional(),
     ),
     description: optionalText(1000),
-    coverImageKey: optionalText(300),
-    logoKey: optionalText(300),
     defaultAllowedCompanions: formInt(
       z
         .number({ message: 'invalid_number' })
@@ -128,8 +126,6 @@ export const eventDetailsSchema = z
     address: v.address ?? null,
     mapsUrl: v.mapsUrl ?? null,
     description: v.description ?? null,
-    coverImageKey: v.coverImageKey ?? null,
-    logoKey: v.logoKey ?? null,
   }));
 
 export type EventDetailsInput = z.input<typeof eventDetailsSchema>;

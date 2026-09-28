@@ -27,4 +27,23 @@ describe('loadConfig', () => {
       /APP_BASE_URL[\s\S]*DATABASE_URL/,
     );
   });
+
+  it('stores images on local disk in development and needs a bucket in production', () => {
+    expect(loadConfig(valid).STORAGE_DRIVER).toBe('local');
+    expect(() => loadConfig({ ...valid, NODE_ENV: 'production' })).toThrow(/STORAGE_DRIVER/);
+    expect(() => loadConfig({ ...valid, NODE_ENV: 'production', STORAGE_DRIVER: 's3' })).toThrow(
+      /S3_BUCKET/,
+    );
+    const s3 = loadConfig({
+      ...valid,
+      NODE_ENV: 'production',
+      STORAGE_DRIVER: 's3',
+      S3_ENDPOINT: 'https://storage.example.sa',
+      S3_REGION: 'riyadh-1',
+      S3_BUCKET: 'guest-media',
+      S3_ACCESS_KEY_ID: 'id',
+      S3_SECRET_ACCESS_KEY: 'secret',
+    });
+    expect(s3.S3_FORCE_PATH_STYLE).toBe(true);
+  });
 });

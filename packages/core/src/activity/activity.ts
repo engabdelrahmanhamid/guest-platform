@@ -34,6 +34,19 @@ export const ACTIVITY_TYPES = [
   'guest_import.committed',
   'guest_import.failed',
   'guest_import.discarded',
+  'invitation.created',
+  'invitation.shared',
+  'invitation.opened',
+  'invitation.token_rotated',
+  'invitation.links_exported',
+  'invitation.design_updated',
+  'invitation.share_text_updated',
+  'rsvp.confirmed',
+  'rsvp.declined',
+  'rsvp.changed',
+  'pass.issued',
+  'pass.revoked',
+  'pass.replaced',
 ] as const;
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
@@ -43,6 +56,8 @@ export type Actor =
   | { type: 'member'; membershipId: string; userId: string | null }
   | { type: 'user'; userId: string }
   | { type: 'admin'; userId: string }
+  /** The guest, acting through their invitation link. */
+  | { type: 'guest' }
   | { type: 'system' };
 
 export interface ActivityInput {
@@ -63,7 +78,7 @@ function activityRow(input: ActivityInput) {
     guestId: input.guestId ?? null,
     actorType: actor.type,
     actorMembershipId: actor.type === 'member' ? actor.membershipId : null,
-    actorUserId: actor.type === 'system' ? null : actor.userId,
+    actorUserId: actor.type === 'system' || actor.type === 'guest' ? null : actor.userId,
     data: input.data ?? {},
   };
 }

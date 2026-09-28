@@ -5,8 +5,11 @@ import {
   type CoreContext,
   createLogger,
   loadConfig,
+  LocalDiskStorage,
   type Logger,
   MemoryMailer,
+  type ObjectStorage,
+  S3Storage,
 } from '@gp/core';
 import { createDatabase, createPool, type Database } from '@gp/db';
 import type pg from 'pg';
@@ -51,6 +54,21 @@ export function getDevOutbox(): MemoryMailer | null {
   return getConfig().NODE_ENV === 'production' ? null : devOutbox;
 }
 
+/** Event images: the Saudi-region bucket in production, a local folder in development. */
+function createStorage(cfg: AppConfig): ObjectStorage {
+  if (cfg.STORAGE_DRIVER === 's3') {
+    return new S3Storage({
+      endpoint: cfg.S3_ENDPOINT,
+      region: cfg.S3_REGION!,
+      bucket: cfg.S3_BUCKET!,
+      accessKeyId: cfg.S3_ACCESS_KEY_ID!,
+      secretAccessKey: cfg.S3_SECRET_ACCESS_KEY!,
+      forcePathStyle: cfg.S3_FORCE_PATH_STYLE,
+    });
+  }
+  return new LocalDiskStorage(cfg.LOCAL_STORAGE_DIR);
+}
+
 export function getCoreContext(): CoreContext {
   if (!ctx) {
     const cfg = getConfig();
@@ -58,6 +76,7 @@ export function getCoreContext(): CoreContext {
     ctx = {
       db,
       mailer: cfg.NODE_ENV === 'production' ? new UnconfiguredMailer() : devOutbox,
+      storage: createStorage(cfg),
       encryptionKey: cfg.APP_ENCRYPTION_KEY,
       appBaseUrl: cfg.APP_BASE_URL,
       now: () => new Date(),

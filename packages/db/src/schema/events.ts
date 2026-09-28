@@ -70,6 +70,13 @@ export const events = pgTable(
   (t) => [
     index('events_workspace_status_idx').on(t.workspaceId, t.status),
     index('events_status_starts_idx').on(t.status, t.startsAt),
+    // Media is served by key; keys are random, so each belongs to exactly one event.
+    uniqueIndex('events_cover_image_key')
+      .on(t.coverImageKey)
+      .where(sql`${t.coverImageKey} IS NOT NULL`),
+    uniqueIndex('events_logo_key')
+      .on(t.logoKey)
+      .where(sql`${t.logoKey} IS NOT NULL`),
     check('events_name_len', sql`char_length(${t.name}) BETWEEN 1 AND 150`),
     check('events_city_len', sql`char_length(${t.city}) BETWEEN 1 AND 80`),
     check('events_venue_len', sql`char_length(${t.venueName}) BETWEEN 1 AND 150`),

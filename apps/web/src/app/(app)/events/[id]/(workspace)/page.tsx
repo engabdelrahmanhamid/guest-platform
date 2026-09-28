@@ -1,7 +1,9 @@
 import {
+  getInvitationDesign,
   guestSummary,
   listMemberships,
   listRecentEventActivity,
+  rsvpSummary,
   TRANSITION_ACTIONS,
 } from '@gp/core';
 import type { Metadata } from 'next';
@@ -43,13 +45,15 @@ export default async function EventOverviewPage({
   const t = await getTranslations();
   const isOwner = view.membership.role === 'owner';
   const ctx = getCoreContext();
-  const [members, activity, guests] = isOwner
+  const [members, activity, guests, rsvp, design] = isOwner
     ? await Promise.all([
         listMemberships(ctx, principal.user.id, id),
         listRecentEventActivity(ctx, principal.user.id, id),
         guestSummary(ctx, principal.user.id, id),
+        rsvpSummary(ctx, principal.user.id, id),
+        getInvitationDesign(ctx, principal.user.id, id).then((d) => d.design),
       ])
-    : [[], [], null];
+    : [[], [], null, null, null];
   const staff = members.filter((m) => m.role === 'staff');
   const tz = e.timezone;
   const base = `/events/${id}`;
@@ -57,7 +61,13 @@ export default async function EventOverviewPage({
   // Setup readiness only means something before the event runs.
   const showReadiness = isOwner && (e.status === 'draft' || e.status === 'active');
   const hasGuests = (guests?.active ?? 0) > 0;
-  const readiness: { key: string; state: ReadyState; note: string; href?: string }[] = [
+  const readiness: {
+    key: string;
+    state: ReadyState;
+    note: string;
+    href?: string;
+    action?: string;
+  }[] = [
     { key: 'details', state: 'done', note: t('readiness.detailsNote') },
     {
       key: 'guests',
@@ -67,7 +77,29 @@ export default async function EventOverviewPage({
         : t('readiness.guestsTodo'),
       ...(hasGuests ? {} : { href: `${base}/guests` }),
     },
-    { key: 'invitation', state: 'later', note: t('readiness.later') },
+    {
+      key: 'invitation',
+      state: design?.saved ? 'done' : 'todo',
+      note: design?.saved
+        ? t('readiness.invitationNote', { template: t(`design.template.${design.template}.name`) })
+        : t('readiness.invitationTodo'),
+      ...(design?.saved ? {} : { href: `${base}/invitation`, action: 'readiness.design' }),
+    },
+    ...(e.status === 'active' && hasGuests && rsvp
+      ? [
+          {
+            key: 'share',
+            state: (rsvp.shared >= rsvp.invited ? 'done' : 'todo') as ReadyState,
+            note: t('readiness.shareNote', {
+              shared: formatCount(rsvp.shared),
+              total: formatCount(rsvp.invited),
+            }),
+            ...(rsvp.shared >= rsvp.invited
+              ? {}
+              : { href: `${base}/messages`, action: 'readiness.shareAction' }),
+          },
+        ]
+      : []),
     {
       key: 'team',
       state: staff.length > 0 ? 'done' : 'todo',
@@ -118,7 +150,7 @@ export default async function EventOverviewPage({
                     </span>
                     {r.href ? (
                       <Link href={r.href} className="btn btn-secondary btn-sm">
-                        {t('readiness.add')}
+                        {t(r.action ?? 'readiness.add')}
                       </Link>
                     ) : (
                       <span className="sr-only">{t(`readiness.state.${r.state}`)}</span>
@@ -138,21 +170,48 @@ export default async function EventOverviewPage({
                   <Icon name="arrow" />
                 </Link>
               </div>
-              <dl className="guest-stats guest-stats-3">
-                <div>
-                  <dt>{t('overview.guestsTotal')}</dt>
-                  <dd>{formatCount(guests.total)}</dd>
-                </div>
-                <div>
-                  <dt>{t('overview.guestsActive')}</dt>
-                  <dd>{formatCount(guests.active)}</dd>
-                </div>
-                <div className="is-capacity">
-                  <dt>{t('overview.guestsCapacity')}</dt>
-                  <dd>{formatCount(guests.potentialCapacity)}</dd>
-                  <p>{t('overview.guestsCapacityHint')}</p>
-                </div>
-              </dl>
+              {rsvp && (
+                <>
+                  <dl className="rsvp-stats" aria-label={t('overview.rsvp.label')}>
+                    <div>
+                      <dt>{t('overview.rsvp.guests')}</dt>
+                      <dd>{formatCount(rsvp.invited)}</dd>
+                    </div>
+                    <div>
+                      <dt>{t('overview.rsvp.responses')}</dt>
+                      <dd>{formatCount(rsvp.responded)}</dd>
+                    </div>
+                    <div className="is-yes">
+                      <dt>{t('overview.rsvp.confirmed')}</dt>
+                      <dd>{formatCount(rsvp.confirmed)}</dd>
+                    </div>
+                    <div className="is-no">
+                      <dt>{t('overview.rsvp.declined')}</dt>
+                      <dd>{formatCount(rsvp.declined)}</dd>
+                    </div>
+                    <div>
+                      <dt>{t('overview.rsvp.pending')}</dt>
+                      <dd>{formatCount(rsvp.pending)}</dd>
+                    </div>
+                    <div className="is-expected">
+                      <dt>{t('overview.rsvp.expected')}</dt>
+                      <dd>{formatCount(rsvp.expectedAttendance)}</dd>
+                      <p>{t('overview.rsvp.expectedHint')}</p>
+                    </div>
+                  </dl>
+                  {rsvp.invited > 0 && (
+                    <p className="rsvp-funnel">
+                      <Link href={`${base}/messages`}>
+                        {t('overview.rsvp.funnel', {
+                          shared: formatCount(rsvp.shared),
+                          opened: formatCount(rsvp.opened),
+                          total: formatCount(rsvp.invited),
+                        })}
+                      </Link>
+                    </p>
+                  )}
+                </>
+              )}
             </section>
           )}
 

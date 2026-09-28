@@ -18,6 +18,7 @@ import { formatShortDateTime } from '@/lib/format';
 import { type GuestsParams, guestsHref, UUID } from '@/lib/guests';
 import { getCoreContext } from '@/lib/server';
 import { requirePrincipal } from '@/lib/session';
+import { LifecycleSections } from './lifecycle-sections';
 import { addGuestAction, groupAction, guestStatusAction, updateGuestAction } from './actions';
 
 type Group = { id: string; name: string; sortOrder: number; guestCount: number };
@@ -265,22 +266,15 @@ export async function GuestPanels({
         </dl>
       </section>
 
-      <section className="drawer-section" aria-labelledby="gd-settings">
-        <h3 id="gd-settings">{t('guests.drawer.settings')}</h3>
-        <dl className="kv">
-          <dt>{t('guests.drawer.companions')}</dt>
-          <dd>
-            {t('guests.companionsLabel', { count: guest.allowedCompanions })}
-            <span className="note">
-              {t('guests.drawer.partySize', { count: 1 + guest.allowedCompanions })}
-            </span>
-          </dd>
-        </dl>
-        <p className="later-note">
-          <Icon name="clock" />
-          {t('guests.drawer.later')}
-        </p>
-      </section>
+      <LifecycleSections
+        userId={principal.user.id}
+        eventId={eventId}
+        guestId={guest.id}
+        guestActive={guest.status === 'active'}
+        allowedCompanions={guest.allowedCompanions}
+        self={self}
+        tz={tz}
+      />
 
       <section className="drawer-section" aria-labelledby="gd-activity">
         <h3 id="gd-activity">{t('guests.drawer.activity')}</h3>
@@ -291,6 +285,7 @@ export async function GuestPanels({
               <span className="when">
                 {formatShortDateTime(a.at, tz)}
                 {a.byName && ` · ${t('guests.activity.by', { name: a.byName })}`}
+                {a.byGuest && ` · ${t('guests.activity.byGuest')}`}
               </span>
             </li>
           ))}
@@ -356,6 +351,37 @@ function activityText(
       return t('guests.activity.restored');
     case 'guest.deleted':
       return t('guests.activity.deleted');
+    case 'invitation.created':
+      return t('guests.activity.invitationCreated');
+    case 'invitation.shared':
+      return t(
+        `guests.activity.shared.${data.method === 'copy_link' || data.method === 'copy_text' ? data.method : 'whatsapp'}`,
+      );
+    case 'invitation.opened':
+      return t('guests.activity.opened');
+    case 'invitation.token_rotated':
+      return t('guests.activity.rotated');
+    case 'rsvp.confirmed':
+      return t('guests.activity.rsvpConfirmed', { companions: Number(data.companions ?? 0) });
+    case 'rsvp.declined':
+      return t('guests.activity.rsvpDeclined');
+    case 'rsvp.changed':
+      return t('guests.activity.rsvpChanged', {
+        from: String(data.fromCompanions ?? 0),
+        to: String(data.toCompanions ?? 0),
+      });
+    case 'pass.issued':
+      return t(
+        `guests.activity.passIssued.${data.reason === 'restored' || data.reason === 'replaced' ? data.reason : 'confirmed'}`,
+      );
+    case 'pass.revoked':
+      return (
+        t(
+          `guests.activity.passRevoked.${data.reason === 'guest_cancelled' || data.reason === 'replaced' ? data.reason : 'declined'}`,
+        ) + bulk
+      );
+    case 'pass.replaced':
+      return t('guests.activity.passReplaced');
     default:
       return type;
   }

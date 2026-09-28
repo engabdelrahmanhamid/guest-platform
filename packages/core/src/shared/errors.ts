@@ -40,7 +40,16 @@ export type DomainErrorCode =
   | 'import_not_ready'
   | 'import_decisions_missing'
   | 'import_changed'
-  | 'invalid_decision';
+  | 'invalid_decision'
+  | 'event_not_published'
+  | 'rsvp_closed'
+  | 'guest_not_active'
+  | 'companions_over_allowance'
+  | 'allowance_below_response'
+  | 'no_active_pass'
+  | 'image_unsupported'
+  | 'image_too_large'
+  | 'image_too_small';
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode;

@@ -64,6 +64,7 @@ describe.skipIf(!databaseUrl)('guests', () => {
     });
     expect(await activityOf(id)).toEqual([
       { type: 'guest.created', data: { source: 'manual', duplicateAcknowledged: false } },
+      { type: 'invitation.created', data: {} },
     ]);
   });
 
@@ -120,6 +121,7 @@ describe.skipIf(!databaseUrl)('guests', () => {
     if (again.status !== 'saved') return;
     expect(await activityOf(again.guestId)).toEqual([
       { type: 'guest.created', data: { source: 'manual', duplicateAcknowledged: true } },
+      { type: 'invitation.created', data: {} },
     ]);
     expect((await guestSummary(ctx, userId, eventId)).total).toBe(2);
   });
@@ -142,7 +144,7 @@ describe.skipIf(!databaseUrl)('guests', () => {
       allowedCompanions: '4',
     });
     const log = await activityOf(id);
-    expect(log.slice(1)).toEqual([
+    expect(log.slice(2)).toEqual([
       { type: 'guest.updated', data: { fields: ['fullName', 'email'] } },
       { type: 'guest.group_changed', data: { from: null, to: groupId } },
       { type: 'guest.companion_allowance_changed', data: { from: 2, to: 4 } },
@@ -191,6 +193,7 @@ describe.skipIf(!databaseUrl)('guests', () => {
     });
     expect((await activityOf(id)).map((a) => a.type)).toEqual([
       'guest.created',
+      'invitation.created',
       'guest.cancelled',
       'guest.restored',
     ]);
@@ -205,7 +208,11 @@ describe.skipIf(!databaseUrl)('guests', () => {
     await deleteGuest(ctx, userId, eventId, id);
     await expect(getGuest(ctx, userId, eventId, id)).rejects.toEqual(code('not_found'));
     const log = await activityOf(id);
-    expect(log.map((a) => a.type)).toEqual(['guest.created', 'guest.deleted']);
+    expect(log.map((a) => a.type)).toEqual([
+      'guest.created',
+      'invitation.created',
+      'guest.deleted',
+    ]);
     await expect(deleteGuest(ctx, userId, eventId, id)).rejects.toEqual(code('not_found'));
   });
 
@@ -327,6 +334,7 @@ describe.skipIf(!databaseUrl)('guests', () => {
     expect(p2.items.map((i) => i.type)).toEqual([
       'guest.restored',
       'guest.cancelled',
+      'invitation.created',
       'guest.created',
     ]);
   });

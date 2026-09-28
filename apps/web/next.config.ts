@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@gp/core', '@gp/db'],
   serverExternalPackages: ['@node-rs/argon2'],
   poweredByHeader: false,
+  devIndicators: false,
 };
 
 export default withNextIntl(nextConfig);

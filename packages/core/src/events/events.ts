@@ -307,6 +307,8 @@ export async function listOwnedEvents(db: DbOrTx, userId: string, filter: Dashbo
       timezone: events.timezone,
       status: events.status,
       type: events.type,
+      city: events.city,
+      venueName: events.venueName,
       disabledAt: events.disabledAt,
     })
     .from(events)

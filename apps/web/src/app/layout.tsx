@@ -12,7 +12,7 @@ const font = IBM_Plex_Sans_Arabic({
 });
 
 export const metadata: Metadata = {
-  title: 'منصة الضيوف',
+  title: { default: 'منصة الضيوف', template: '%s · منصة الضيوف' },
   robots: { index: false, follow: false },
 };
 

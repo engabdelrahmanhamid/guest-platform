@@ -16,7 +16,8 @@
     "test": "vitest run",
     "db:generate": "pnpm --filter @gp/db generate",
     "db:migrate": "pnpm --filter @gp/db migrate",
-    "admin:grant": "pnpm --filter @gp/worker exec tsx src/cli/grant-admin.ts"
+    "admin:grant": "pnpm --filter @gp/worker exec tsx src/cli/grant-admin.ts",
+    "demo:seed": "pnpm --filter @gp/worker exec tsx src/cli/seed-demo.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

@@ -9,6 +9,7 @@ import {
   useContext,
 } from 'react';
 import { useFormStatus } from 'react-dom';
+import { Icon } from './icons';
 
 export interface FormState {
   ok?: boolean;
@@ -41,12 +42,16 @@ export function ActionForm({
       <StateContext value={state}>
         {state.error && (
           <p role="alert" className="alert alert-error">
-            {t.has(`errors.${state.error}`) ? t(`errors.${state.error}`) : t('errors.generic')}
+            <Icon name="alert" />
+            <span className="grow">
+              {t.has(`errors.${state.error}`) ? t(`errors.${state.error}`) : t('errors.generic')}
+            </span>
           </p>
         )}
         {state.ok && state.message && (
           <p role="status" className="alert alert-ok">
-            {t(state.message)}
+            <Icon name="checkCircle" />
+            <span className="grow">{t(state.message)}</span>
           </p>
         )}
         {children}
@@ -66,16 +71,55 @@ type InputProps = Omit<ComponentProps<'input'>, 'name'> & {
   name: string;
   label: string;
   hint?: string;
+  /** Shown after the label, e.g. "(اختياري)". */
+  optional?: string;
+  /** Rendered at the far end of the label row, e.g. a "forgot password" link. */
+  aside?: ReactNode;
 };
 
-export function Field({ name, label, hint, defaultValue, type = 'text', ...rest }: InputProps) {
+function Label({
+  id,
+  label,
+  optional,
+  aside,
+}: {
+  id: string;
+  label: string;
+  optional?: string | undefined;
+  aside?: ReactNode;
+}) {
+  const text = (
+    <label htmlFor={id}>
+      {label} {optional && <span className="opt">({optional})</span>}
+    </label>
+  );
+  return aside ? (
+    <div className="field-row">
+      {text}
+      <span className="small">{aside}</span>
+    </div>
+  ) : (
+    text
+  );
+}
+
+export function Field({
+  name,
+  label,
+  hint,
+  optional,
+  aside,
+  defaultValue,
+  type = 'text',
+  ...rest
+}: InputProps) {
   const state = useContext(StateContext);
   const error = useFieldError(name);
   const id = `f-${name}`;
   const value = state.values?.[name] ?? defaultValue;
   return (
     <div className="field">
-      <label htmlFor={id}>{label}</label>
+      <Label id={id} label={label} optional={optional} aside={aside} />
       <input
         id={id}
         name={name}
@@ -97,15 +141,22 @@ export function Field({ name, label, hint, defaultValue, type = 'text', ...rest 
 export function TextArea({
   name,
   label,
+  optional,
+  hint,
   defaultValue,
   ...rest
-}: Omit<ComponentProps<'textarea'>, 'name'> & { name: string; label: string }) {
+}: Omit<ComponentProps<'textarea'>, 'name'> & {
+  name: string;
+  label: string;
+  optional?: string;
+  hint?: string;
+}) {
   const state = useContext(StateContext);
   const error = useFieldError(name);
   const id = `f-${name}`;
   return (
     <div className="field">
-      <label htmlFor={id}>{label}</label>
+      <Label id={id} label={label} optional={optional} />
       <textarea
         id={id}
         name={name}
@@ -113,7 +164,7 @@ export function TextArea({
         aria-invalid={error ? true : undefined}
         {...rest}
       />
-      {error && <p className="field-error">{error}</p>}
+      {(error || hint) && <p className={error ? 'field-error' : 'field-hint'}>{error ?? hint}</p>}
     </div>
   );
 }
@@ -170,16 +221,20 @@ export function SubmitButton({
   children,
   variant = 'primary',
   confirm,
+  size,
+  block,
 }: {
   children: ReactNode;
-  variant?: 'primary' | 'secondary' | 'danger' | 'link';
+  variant?: 'primary' | 'secondary' | 'danger' | 'danger-solid' | 'ghost' | 'link';
   confirm?: string;
+  size?: 'sm';
+  block?: boolean;
 }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
-      className={`btn btn-${variant}`}
+      className={`btn btn-${variant}${size ? ` btn-${size}` : ''}${block ? ' btn-block' : ''}`}
       disabled={pending}
       aria-busy={pending || undefined}
       onClick={(e) => {

@@ -1,9 +1,12 @@
 import { isDomainError, verifyEmail } from '@gp/core';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
+import { Icon } from '@/components/icons';
 import { getCoreContext } from '@/lib/server';
 
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = { title: 'تأكيد البريد الإلكتروني' };
 
 export default async function VerifyEmailPage({
   searchParams,
@@ -22,16 +25,18 @@ export default async function VerifyEmailPage({
     }
   }
   return (
-    <>
+    <div className="success" style={{ padding: 0 }}>
+      <span
+        className="glyph"
+        style={ok ? undefined : { background: 'var(--danger-50)', color: 'var(--danger)' }}
+      >
+        <Icon name={ok ? 'checkCircle' : 'alert'} />
+      </span>
       <h1>{t('auth.verifyTitle')}</h1>
-      <p className={ok ? 'alert alert-ok' : 'alert alert-error'}>
-        {ok ? t('auth.verifyDone') : t('auth.verifyFailed')}
-      </p>
-      <p>
-        <Link href="/dashboard" className="btn btn-primary">
-          {t('nav.dashboard')}
-        </Link>
-      </p>
-    </>
+      <p className="muted">{ok ? t('auth.verifyDone') : t('auth.verifyFailed')}</p>
+      <Link href="/dashboard" className="btn btn-primary btn-block">
+        {t('nav.dashboard')}
+      </Link>
+    </div>
   );
 }

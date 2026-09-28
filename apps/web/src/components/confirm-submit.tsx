@@ -9,12 +9,14 @@ export function ConfirmSubmit({
   value,
   confirm,
   variant = 'primary',
+  size,
   children,
 }: {
   name: string;
   value: string;
-  confirm: string;
-  variant?: 'primary' | 'secondary' | 'danger';
+  confirm?: string;
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  size?: 'sm';
   children: ReactNode;
 }) {
   const { pending } = useFormStatus();
@@ -23,10 +25,10 @@ export function ConfirmSubmit({
       type="submit"
       name={name}
       value={value}
-      className={`btn btn-${variant}`}
+      className={`btn btn-${variant}${size ? ` btn-${size}` : ''}`}
       disabled={pending}
       onClick={(e) => {
-        if (!window.confirm(confirm)) e.preventDefault();
+        if (confirm && !window.confirm(confirm)) e.preventDefault();
       }}
     >
       {children}

@@ -1,10 +1,16 @@
 import { EVENT_TYPES_BY_CATEGORY, type EventCategory, getLifecycleDefaults } from '@gp/core';
+import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { EventForm } from '@/components/event-form';
+import { EVENT_TYPE_ICONS, Icon } from '@/components/icons';
+import { CreateStepper } from '@/components/stepper';
 import { TIMEZONES } from '@/lib/format';
 import { getCoreContext } from '@/lib/server';
 import { createEventAction } from '../../actions';
+
+export const metadata: Metadata = { title: 'تفاصيل المناسبة' };
 
 export default async function NewEventDetailsPage({
   searchParams,
@@ -18,25 +24,32 @@ export default async function NewEventDetailsPage({
   const t = await getTranslations();
   const defaults = await getLifecycleDefaults(getCoreContext().db);
   return (
-    <>
-      <h1>{t('eventForm.detailsTitle')}</h1>
-      <p className="muted">
-        {t(`category.${category}`)} · {t(`eventType.${type}`)}
-      </p>
-      <section className="card">
-        <EventForm
-          action={createEventAction}
-          timezones={TIMEZONES}
-          submitLabel={t('eventForm.create')}
-          values={{
-            category: category!,
-            type,
-            timezone: 'Asia/Riyadh',
-            defaultAllowedCompanions: 0,
-            ...defaults,
-          }}
-        />
-      </section>
-    </>
+    <div className="card" style={{ maxInlineSize: 820, marginInline: 'auto' }}>
+      <CreateStepper current={2} />
+      <div className="page-head">
+        <div>
+          <h1>{t('eventForm.detailsTitle')}</h1>
+          <p className="lead">{t('eventForm.detailsSubtitle')}</p>
+        </div>
+        <span className="chosen">
+          <Icon name={EVENT_TYPE_ICONS[type] ?? 'sparkle'} />
+          {t(`eventType.${type}`)}
+          <Link href="/events/new">{t('eventForm.changeType')}</Link>
+        </span>
+      </div>
+      <EventForm
+        action={createEventAction}
+        timezones={TIMEZONES}
+        cancelHref="/dashboard"
+        submitLabel={t('eventForm.create')}
+        values={{
+          category: category!,
+          type,
+          timezone: 'Asia/Riyadh',
+          defaultAllowedCompanions: 0,
+          ...defaults,
+        }}
+      />
+    </div>
   );
 }

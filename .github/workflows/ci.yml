@@ -26,6 +26,8 @@ jobs:
     env:
       DATABASE_URL: postgres://guest_platform:guest_platform@localhost:5432/guest_platform
       APP_BASE_URL: http://localhost:3000
+      # Test-only key; production keys live in the hosting provider's secret store.
+      APP_ENCRYPTION_KEY: Iykcga9TOFLGZKYaFkXVlkOgcrEoRj4j6/B1ZK53Aqw=
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@v4

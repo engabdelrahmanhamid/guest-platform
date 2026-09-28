@@ -13,13 +13,14 @@
     "@gp/core": "workspace:*",
     "@gp/db": "workspace:*",
     "next": "16.3.6",
+    "next-intl": "4.14.7",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "0.0.1"
   },
   "devDependencies": {
+    "@types/pg": "8.23.1",
     "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0",
-    "@types/pg": "8.23.1"
+    "@types/react-dom": "19.3.0"
   }
 }

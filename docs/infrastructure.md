@@ -5,13 +5,13 @@
 The app uses no provider-specific services. Any cloud offering these **inside Saudi Arabia**
 works:
 
-| Need                                                                    | Used for                                        |
-| ----------------------------------------------------------------------- | ----------------------------------------------- |
-| Managed PostgreSQL 16 with point-in-time recovery and encrypted backups | All data and the job queue                      |
-| Container runtime (two services: `web`, `worker`)                       | `docker build --target web` / `--target worker` |
-| S3-compatible object storage                                            | Cover images, short-lived import files          |
-| Secret store                                                            | `DATABASE_URL` and future provider credentials  |
-| HTTPS load balancer                                                     | Health check at `GET /api/health`               |
+| Need                                                                    | Used for                                                       |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Managed PostgreSQL 16 with point-in-time recovery and encrypted backups | All data and the job queue                                     |
+| Container runtime (two services: `web`, `worker`)                       | `docker build --target web` / `--target worker`                |
+| S3-compatible object storage                                            | Cover images, short-lived import files                         |
+| Secret store                                                            | `DATABASE_URL`, `APP_ENCRYPTION_KEY`, provider credentials     |
+| HTTPS load balancer                                                     | Health check at `GET /api/health` (worker: `GET :8081/health`) |
 
 Environments: `staging` and `production`, each with its own database.
 
@@ -26,3 +26,9 @@ Environments: `staging` and `production`, each with its own database.
 
 See `.env.example`. Configuration is validated at startup (`packages/core/src/config`), and the
 process refuses to start with invalid values.
+
+## Account email (owners and admins only)
+
+Verification and password-reset emails need a transactional email provider, chosen together with
+the hosting provider. Until one is configured, production drops these emails with a warning (the
+log line never contains the link). Guests never receive email.

@@ -1,4 +1,7 @@
-// Tables are added module by module from phase 1, following the approved architecture
-// (docs/architecture.md). Integrity rules that drizzle cannot express (partial unique
-// indexes, composite foreign keys, CHECK constraints, triggers) go in reviewed SQL migrations.
-export {};
+// Tables follow the approved architecture (docs/architecture.md). Rules drizzle cannot
+// express (triggers, append-only guards, seed rows) live in reviewed SQL migrations.
+export * from './enums';
+export * from './identity';
+export * from './workspaces';
+export * from './events';
+export * from './platform';

@@ -1,13 +1,23 @@
 import 'server-only';
-import { createLogger, loadConfig, type AppConfig, type Logger } from '@gp/core';
-import { createPool } from '@gp/db';
+import {
+  type AccountMailer,
+  type AppConfig,
+  type CoreContext,
+  createLogger,
+  loadConfig,
+  type Logger,
+  MemoryMailer,
+} from '@gp/core';
+import { createDatabase, createPool, type Database } from '@gp/db';
 import type pg from 'pg';
 
-// One config, logger and pool per server process, created on first use so that
+// One config, logger, pool and context per server process, created on first use so that
 // `next build` does not need runtime secrets.
 let config: AppConfig | undefined;
 let logger: Logger | undefined;
 let dbPool: pg.Pool | undefined;
+let db: Database | undefined;
+let ctx: CoreContext | undefined;
 
 export function getConfig(): AppConfig {
   return (config ??= loadConfig());
@@ -19,4 +29,39 @@ export function getLogger(): Logger {
 
 export function getPool(): pg.Pool {
   return (dbPool ??= createPool(getConfig().DATABASE_URL));
+}
+
+/**
+ * Development keeps account emails in memory and shows them at /dev/outbox, so links (which
+ * carry tokens) are never written to logs. Production needs a mail provider chosen with the
+ * hosting provider; until then emails are dropped with a warning that names no token.
+ */
+const devOutbox = new MemoryMailer();
+
+class UnconfiguredMailer implements AccountMailer {
+  async sendEmailVerification() {
+    getLogger().warn({ kind: 'email_verification' }, 'account email provider not configured');
+  }
+  async sendPasswordReset() {
+    getLogger().warn({ kind: 'password_reset' }, 'account email provider not configured');
+  }
+}
+
+export function getDevOutbox(): MemoryMailer | null {
+  return getConfig().NODE_ENV === 'production' ? null : devOutbox;
+}
+
+export function getCoreContext(): CoreContext {
+  if (!ctx) {
+    const cfg = getConfig();
+    db = createDatabase(getPool());
+    ctx = {
+      db,
+      mailer: cfg.NODE_ENV === 'production' ? new UnconfiguredMailer() : devOutbox,
+      encryptionKey: cfg.APP_ENCRYPTION_KEY,
+      appBaseUrl: cfg.APP_BASE_URL,
+      now: () => new Date(),
+    };
+  }
+  return ctx;
 }

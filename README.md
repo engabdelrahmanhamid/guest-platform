@@ -1,0 +1,45 @@
+# Guest Platform
+
+Guest Experience & Event Operations Platform: guest lifecycle management for private and
+business events (invitations, RSVP, QR passes, check-in, live attendance, reports).
+Arabic-first.
+
+- Approved architecture: [docs/architecture.md](docs/architecture.md)
+- Infrastructure and releases: [docs/infrastructure.md](docs/infrastructure.md)
+
+## Local development
+
+Requirements: Node 22.12+, pnpm 10 (`corepack enable`), Docker (or a local PostgreSQL 16).
+
+```sh
+cp .env.example .env
+docker compose up -d postgres
+pnpm install
+pnpm db:migrate
+pnpm dev            # web on http://localhost:3000, worker alongside
+```
+
+The dev scripts don't load `.env` automatically. Export the variables in your shell first
+(for example with `set -a; . ./.env; set +a`).
+
+## Checks
+
+```sh
+pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build
+```
+
+## Layout
+
+```
+apps/web         Next.js: owner app, guest pages, staff scanner, admin, API
+apps/worker      Background jobs (pg-boss)
+packages/core    Domain logic, config, logging (framework-free)
+packages/db      Drizzle schema, SQL migrations, migration runner
+```
+
+## Database changes
+
+Edit `packages/db/src/schema`, then run `pnpm db:generate`. Rules Drizzle can't express (partial
+unique indexes, composite foreign keys, CHECK constraints, triggers) go into the generated SQL
+migration or a `--custom` one, and are reviewed like code. CI fails if the schema and migrations
+drift apart.

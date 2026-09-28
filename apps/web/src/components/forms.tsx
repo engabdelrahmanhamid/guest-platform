@@ -9,6 +9,7 @@ import {
   useContext,
 } from 'react';
 import { useFormStatus } from 'react-dom';
+import { type ButtonVariant, buttonClass } from './button';
 import { Icon } from './icons';
 
 export interface FormState {
@@ -71,26 +72,37 @@ type InputProps = Omit<ComponentProps<'input'>, 'name'> & {
   name: string;
   label: string;
   hint?: string;
-  /** Shown after the label, e.g. "(اختياري)". */
-  optional?: string;
   /** Rendered at the far end of the label row, e.g. a "forgot password" link. */
   aside?: ReactNode;
 };
 
+/** Emails, phone numbers and links are typed and read left to right inside RTL screens. */
+const LTR_TYPES = new Set(['email', 'tel', 'url']);
+
+/** Field label. Required fields carry a marker; everything else is optional by convention. */
 function Label({
   id,
   label,
-  optional,
+  required,
   aside,
 }: {
   id: string;
   label: string;
-  optional?: string | undefined;
+  required?: boolean | undefined;
   aside?: ReactNode;
 }) {
+  const t = useTranslations('common');
   const text = (
     <label htmlFor={id}>
-      {label} {optional && <span className="opt">({optional})</span>}
+      {label}
+      {required && (
+        <>
+          <span className="req" aria-hidden="true">
+            *
+          </span>
+          <span className="sr-only"> ({t('required')})</span>
+        </>
+      )}
     </label>
   );
   return aside ? (
@@ -103,14 +115,30 @@ function Label({
   );
 }
 
+function FieldMessage({ id, error, hint }: { id: string; error?: string; hint?: string }) {
+  if (error) {
+    return (
+      <p id={`${id}-desc`} className="field-error">
+        <Icon name="alert" />
+        {error}
+      </p>
+    );
+  }
+  return hint ? (
+    <p id={`${id}-desc`} className="field-hint">
+      {hint}
+    </p>
+  ) : null;
+}
+
 export function Field({
   name,
   label,
   hint,
-  optional,
   aside,
   defaultValue,
   type = 'text',
+  required,
   ...rest
 }: InputProps) {
   const state = useContext(StateContext);
@@ -119,21 +147,19 @@ export function Field({
   const value = state.values?.[name] ?? defaultValue;
   return (
     <div className="field">
-      <Label id={id} label={label} optional={optional} aside={aside} />
+      <Label id={id} label={label} required={required} aside={aside} />
       <input
         id={id}
         name={name}
         type={type}
+        dir={LTR_TYPES.has(type) ? 'ltr' : undefined}
         defaultValue={type === 'password' ? undefined : value}
+        required={required}
         aria-invalid={error ? true : undefined}
         aria-describedby={error || hint ? `${id}-desc` : undefined}
         {...rest}
       />
-      {(error || hint) && (
-        <p id={`${id}-desc`} className={error ? 'field-error' : 'field-hint'}>
-          {error ?? hint}
-        </p>
-      )}
+      <FieldMessage id={id} error={error} hint={hint} />
     </div>
   );
 }
@@ -141,14 +167,13 @@ export function Field({
 export function TextArea({
   name,
   label,
-  optional,
   hint,
   defaultValue,
+  required,
   ...rest
 }: Omit<ComponentProps<'textarea'>, 'name'> & {
   name: string;
   label: string;
-  optional?: string;
   hint?: string;
 }) {
   const state = useContext(StateContext);
@@ -156,15 +181,17 @@ export function TextArea({
   const id = `f-${name}`;
   return (
     <div className="field">
-      <Label id={id} label={label} optional={optional} />
+      <Label id={id} label={label} required={required} />
       <textarea
         id={id}
         name={name}
         defaultValue={state.values?.[name] ?? defaultValue}
+        required={required}
         aria-invalid={error ? true : undefined}
+        aria-describedby={error || hint ? `${id}-desc` : undefined}
         {...rest}
       />
-      {(error || hint) && <p className={error ? 'field-error' : 'field-hint'}>{error ?? hint}</p>}
+      <FieldMessage id={id} error={error} hint={hint} />
     </div>
   );
 }
@@ -185,15 +212,21 @@ export function Select({
   const id = `f-${name}`;
   return (
     <div className="field">
-      <label htmlFor={id}>{label}</label>
-      <select id={id} name={name} defaultValue={state.values?.[name] ?? defaultValue}>
+      <Label id={id} label={label} />
+      <select
+        id={id}
+        name={name}
+        defaultValue={state.values?.[name] ?? defaultValue}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-desc` : undefined}
+      >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>
         ))}
       </select>
-      {error && <p className="field-error">{error}</p>}
+      <FieldMessage id={id} error={error} />
     </div>
   );
 }
@@ -220,13 +253,11 @@ export function Checkbox({
 export function SubmitButton({
   children,
   variant = 'primary',
-  confirm,
   size,
   block,
 }: {
   children: ReactNode;
-  variant?: 'primary' | 'secondary' | 'danger' | 'danger-solid' | 'ghost' | 'link';
-  confirm?: string;
+  variant?: ButtonVariant;
   size?: 'sm';
   block?: boolean;
 }) {
@@ -234,12 +265,9 @@ export function SubmitButton({
   return (
     <button
       type="submit"
-      className={`btn btn-${variant}${size ? ` btn-${size}` : ''}${block ? ' btn-block' : ''}`}
+      className={buttonClass(variant, size, block)}
       disabled={pending}
       aria-busy={pending || undefined}
-      onClick={(e) => {
-        if (confirm && !window.confirm(confirm)) e.preventDefault();
-      }}
     >
       {children}
     </button>

@@ -2,44 +2,42 @@ import { EVENT_TYPES_BY_CATEGORY, type EventCategory } from '@gp/core';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
-import { EVENT_TYPE_ICONS, Icon } from '@/components/icons';
+import { Icon, type IconName } from '@/components/icons';
 import { CreateStepper } from '@/components/stepper';
 
 export const metadata: Metadata = { title: 'مناسبة جديدة' };
 
-export default async function ChooseEventTypePage() {
+const CATEGORY_ICON: Record<EventCategory, IconName> = { private: 'home', business: 'building' };
+
+/** Create, step 1a: private or business. */
+export default async function ChooseCategoryPage() {
   const t = await getTranslations();
   return (
-    <div className="card" style={{ maxInlineSize: 820, marginInline: 'auto' }}>
+    <div className="wizard">
       <CreateStepper current={1} />
       <div className="page-head">
-        <div>
-          <h1>{t('eventForm.chooseTitle')}</h1>
-          <p className="lead">{t('eventForm.chooseSubtitle')}</p>
+        <div className="titles">
+          <h1>{t('eventForm.categoryTitle')}</h1>
+          <p className="lead">{t('eventForm.categorySubtitle')}</p>
         </div>
       </div>
-      {(Object.keys(EVENT_TYPES_BY_CATEGORY) as EventCategory[]).map((category) => (
-        <section key={category} className="category-block">
-          <header>
-            <h2>{t(`category.${category}`)}</h2>
-            <p>{t(`categoryHint.${category}`)}</p>
-          </header>
-          <div className="choice-grid">
-            {EVENT_TYPES_BY_CATEGORY[category].map((type) => (
-              <Link
-                key={type}
-                href={`/events/new/details?category=${category}&type=${type}`}
-                className="choice"
-              >
-                <span className="glyph">
-                  <Icon name={EVENT_TYPE_ICONS[type] ?? 'sparkle'} />
-                </span>
-                {t(`eventType.${type}`)}
-              </Link>
-            ))}
-          </div>
-        </section>
-      ))}
+      <ul className="category-choices" role="list">
+        {(Object.keys(EVENT_TYPES_BY_CATEGORY) as EventCategory[]).map((category) => (
+          <li key={category}>
+            <Link href={`/events/new/type?category=${category}`} className="category-choice">
+              <span className="glyph">
+                <Icon name={CATEGORY_ICON[category]} />
+              </span>
+              <h2>{t(`category.${category}`)}</h2>
+              <p>{t(`categoryHint.${category}`)}</p>
+              <span className="go" aria-hidden="true">
+                {t('eventForm.choose')}
+                <Icon name="arrow" />
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

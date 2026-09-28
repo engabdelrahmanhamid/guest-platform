@@ -41,15 +41,18 @@ export default async function AdminPage({
 
   return (
     <div className="stack-lg">
-      <div className="page-head" style={{ marginBlockEnd: 0 }}>
-        <div>
+      <div className="page-head">
+        <div className="titles">
           <p className="eyebrow">{t('admin.eyebrow')}</p>
           <h1>{t('admin.title')}</h1>
         </div>
-        <span className="badge badge-live">{t('admin.mfaOn')}</span>
+        <span className="tag tag-brand">
+          <Icon name="shield" />
+          {t('admin.mfaOn')}
+        </span>
       </div>
 
-      <nav className="tabs" style={{ marginBlockEnd: 0 }}>
+      <nav className="tabs" aria-label={t('admin.title')}>
         {TABS.map((x) => (
           <Link
             key={x.key}
@@ -95,10 +98,7 @@ export default async function AdminPage({
         </p>
         {groups.map((g) => (
           <section key={g.title} className="card card-flush">
-            <div
-              className="card-head"
-              style={{ padding: '1.25rem 1.5rem 0', marginBlockEnd: '0.5rem' }}
-            >
+            <div className="card-head card-head-pad">
               <h2>{g.title}</h2>
             </div>
             {g.keys.map((key) => {
@@ -112,7 +112,7 @@ export default async function AdminPage({
                     </label>
                     <p className="desc">{t(descKey)}</p>
                   </div>
-                  <div className="row" style={{ gap: '0.5rem' }}>
+                  <div className="row-tight">
                     <input type="hidden" name="key" value={key} />
                     {isBool(key) ? (
                       <Checkbox
@@ -187,22 +187,18 @@ export default async function AdminPage({
                       <span className="avatar">{initials(u.fullName)}</span>
                       <span>
                         <span className="name">{u.fullName}</span>
-                        <span className="sub ltr" style={{ display: 'block' }}>
-                          {u.email}
-                        </span>
+                        <span className="sub ltr">{u.email}</span>
                       </span>
                     </span>
                   </td>
                   <td>{u.platformRole === 'admin' ? t('admin.adminRole') : t('admin.userRole')}</td>
                   <td>
                     <span
-                      className={`badge ${u.status === 'active' ? 'badge-live' : 'badge-disabled'}`}
+                      className={u.status === 'active' ? 'tag tag-brand' : 'status status-disabled'}
                     >
                       {u.status === 'active' ? t('admin.statusActive') : t('admin.statusDisabled')}
                     </span>
-                    {!u.emailVerifiedAt && (
-                      <span className="subtle xs"> · {t('admin.unverified')}</span>
-                    )}
+                    {!u.emailVerifiedAt && <span className="note">{t('admin.unverified')}</span>}
                   </td>
                   <td className="subtle xs num">
                     {formatShortDateTime(u.createdAt, 'Asia/Riyadh')}
@@ -260,9 +256,7 @@ export default async function AdminPage({
                 <tr key={e.id}>
                   <td>
                     <strong>{e.name}</strong>
-                    <span className="subtle xs num" style={{ display: 'block' }}>
-                      {formatShortDateTime(e.startsAt, e.timezone)}
-                    </span>
+                    <span className="note num">{formatShortDateTime(e.startsAt, e.timezone)}</span>
                   </td>
                   <td className="ltr xs">{e.ownerEmail}</td>
                   <td>

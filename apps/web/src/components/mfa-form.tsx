@@ -35,7 +35,7 @@ export function MfaForm({
       {secret ? (
         <>
           <p className="muted">{t('mfaEnrollIntro')}</p>
-          <div className="stack" style={{ gap: '0.4rem' }}>
+          <div className="stack-sm">
             <span className="label">{t('mfaSecret')}</span>
             <div className="secret">{secret.match(/.{1,4}/g)?.join(' ')}</div>
             <a href={started.data?.uri} className="small">
@@ -44,9 +44,7 @@ export function MfaForm({
           </div>
         </>
       ) : (
-        <p className="muted" style={{ textAlign: 'center' }}>
-          {t('mfaVerifyIntro')}
-        </p>
+        <p className="muted center">{t('mfaVerifyIntro')}</p>
       )}
       <ActionForm action={confirm}>
         <Field

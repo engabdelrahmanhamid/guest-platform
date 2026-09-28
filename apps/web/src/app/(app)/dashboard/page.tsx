@@ -1,47 +1,33 @@
-import { DASHBOARD_FILTERS, type DashboardFilter, listOwnedEvents } from '@gp/core';
+import { listOwnedEvents } from '@gp/core';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
+import { EmptyState } from '@/components/empty-state';
+import { EventCard } from '@/components/event-card';
 import { ActionForm, SubmitButton } from '@/components/forms';
 import { EVENT_TYPE_ICONS, Icon } from '@/components/icons';
 import { StatusBadge } from '@/components/status-badge';
-import { dateTile, formatTime } from '@/lib/format';
+import { byRelevance, featuredEvent } from '@/lib/event-list';
+import { dateTile, formatDayMonth, formatTime } from '@/lib/format';
 import { getCoreContext } from '@/lib/server';
 import { requirePrincipal } from '@/lib/session';
 import { resendVerificationAction } from '../../(auth)/actions';
 
-export const metadata: Metadata = { title: 'مناسباتي' };
+export const metadata: Metadata = { title: 'الرئيسية' };
 
-/** Live first, then upcoming events soonest first, then the rest most recent first. */
-const RANK: Record<string, number> = { live: 0, active: 1, draft: 1 };
-const byRelevance = (
-  a: { status: string; startsAt: Date },
-  b: { status: string; startsAt: Date },
-) => {
-  const ra = RANK[a.status] ?? 2;
-  const rb = RANK[b.status] ?? 2;
-  if (ra !== rb) return ra - rb;
-  const diff = a.startsAt.getTime() - b.startsAt.getTime();
-  return ra === 2 ? -diff : diff;
-};
+/** How many other events the dashboard lists before pointing to the events page. */
+const RECENT_COUNT = 4;
 
-const inFilter = (status: string, filter: DashboardFilter) =>
-  filter === 'all' || status === filter || (filter === 'active' && status === 'live');
-
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ filter?: string }>;
-}) {
+export default async function DashboardPage() {
   const principal = await requirePrincipal();
   const t = await getTranslations();
-  const { filter: raw } = await searchParams;
-  const filter: DashboardFilter = (DASHBOARD_FILTERS as readonly string[]).includes(raw ?? '')
-    ? (raw as DashboardFilter)
-    : 'all';
   const all = await listOwnedEvents(getCoreContext().db, principal.user.id);
-  const events = all.filter((e) => inFilter(e.status, filter)).sort(byRelevance);
-  const firstName = principal.user.fullName.split(/\s+/)[0];
+  const featured = featuredEvent(all);
+  const others = all
+    .filter((e) => e.id !== featured?.id)
+    .sort(byRelevance)
+    .slice(0, RECENT_COUNT);
+  const firstName = principal.user.fullName.split(/\s+/)[0] ?? '';
 
   return (
     <div className="stack-lg">
@@ -60,10 +46,10 @@ export default async function DashboardPage({
         </div>
       )}
 
-      <div className="page-head" style={{ marginBlockEnd: 0 }}>
-        <div>
-          <h1>{t('dashboard.greeting', { name: firstName ?? '' })}</h1>
-          <p className="lead">{t('dashboard.subtitle')}</p>
+      <div className="page-head">
+        <div className="titles">
+          <p className="t-overline">{t('dashboard.greeting', { name: firstName })}</p>
+          <h1>{t('dashboard.title')}</h1>
         </div>
         {all.length > 0 && (
           <Link href="/events/new" className="btn btn-primary">
@@ -74,82 +60,80 @@ export default async function DashboardPage({
       </div>
 
       {all.length === 0 ? (
-        <div className="card empty">
-          <span className="glyph">
-            <Icon name="calendar" />
-          </span>
-          <h2>{t('dashboard.emptyTitle')}</h2>
-          <p>{t('dashboard.empty')}</p>
-          <Link href="/events/new" className="btn btn-primary">
-            <Icon name="plus" />
-            {t('dashboard.createFirst')}
-          </Link>
+        <div className="panel">
+          <EmptyState
+            icon="calendar"
+            title={t('dashboard.emptyTitle')}
+            body={t('dashboard.empty')}
+            action={
+              <Link href="/events/new" className="btn btn-primary">
+                <Icon name="plus" />
+                {t('dashboard.createFirst')}
+              </Link>
+            }
+          />
         </div>
       ) : (
-        <div>
-          <nav className="tabs" aria-label={t('dashboard.filterLabel')}>
-            {DASHBOARD_FILTERS.map((f) => (
-              <Link
-                key={f}
-                href={f === 'all' ? '/dashboard' : `/dashboard?filter=${f}`}
-                className="tab"
-                aria-current={f === filter ? 'page' : undefined}
-              >
-                {t(`dashboard.filters.${f}`)}
-                <span className="count num">{all.filter((e) => inFilter(e.status, f)).length}</span>
+        <>
+          {featured && (
+            <section aria-labelledby="featured-h">
+              <Link href={`/events/${featured.id}`} className="featured">
+                <span className="date-tile" aria-hidden="true">
+                  <span className="m">{dateTile(featured.startsAt, featured.timezone).month}</span>
+                  <span className="d">{dateTile(featured.startsAt, featured.timezone).day}</span>
+                </span>
+                <span className="stack-sm">
+                  <span className="row-tight">
+                    {featured.status === 'live' ? (
+                      <StatusBadge status="live" />
+                    ) : (
+                      <span className="eyebrow">{t('dashboard.featuredNext')}</span>
+                    )}
+                  </span>
+                  <h2 id="featured-h">{featured.name}</h2>
+                  <span className="facts">
+                    <span>
+                      <Icon name={EVENT_TYPE_ICONS[featured.type] ?? 'sparkle'} />
+                      {t(`eventType.${featured.type}`)}
+                    </span>
+                    <span>
+                      <Icon name="calendar" />
+                      {formatDayMonth(featured.startsAt, featured.timezone)} ·{' '}
+                      {formatTime(featured.startsAt, featured.timezone)}
+                    </span>
+                    <span>
+                      <Icon name="pin" />
+                      {featured.city} · {featured.venueName}
+                    </span>
+                  </span>
+                </span>
+                <span className="go">
+                  {t('dashboard.openEvent')}
+                  <Icon name="arrow" />
+                </span>
               </Link>
-            ))}
-          </nav>
-
-          {events.length === 0 ? (
-            <div className="card empty">
-              <p>{t('dashboard.emptyFiltered')}</p>
-            </div>
-          ) : (
-            <div className="event-grid">
-              {events.map((e) => {
-                const tile = dateTile(e.startsAt, e.timezone);
-                const over = ['completed', 'cancelled', 'archived'].includes(e.status);
-                return (
-                  <Link
-                    key={e.id}
-                    href={`/events/${e.id}`}
-                    className={`event-card${over ? ' is-muted' : ''}`}
-                  >
-                    <span className="date-tile" aria-hidden>
-                      <span className="m" style={{ display: 'block' }}>
-                        {tile.month}
-                      </span>
-                      <span className="d" style={{ display: 'block' }}>
-                        {tile.day}
-                      </span>
-                    </span>
-                    <span className="body">
-                      <h3>{e.name}</h3>
-                      <span className="meta">
-                        <span>
-                          <Icon name={EVENT_TYPE_ICONS[e.type] ?? 'sparkle'} />
-                          {t(`eventType.${e.type}`)}
-                        </span>
-                        <span>
-                          <Icon name="clock" />
-                          {formatTime(e.startsAt, e.timezone)}
-                        </span>
-                        <span>
-                          <Icon name="pin" />
-                          {e.city}
-                        </span>
-                      </span>
-                      <span style={{ marginBlockStart: '0.35rem' }}>
-                        <StatusBadge status={e.status} disabled={e.disabledAt !== null} />
-                      </span>
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
+            </section>
           )}
-        </div>
+
+          {others.length > 0 && (
+            <section className="section" aria-labelledby="recent-h">
+              <div className="section-head">
+                <h2 id="recent-h">{t('dashboard.otherEvents')}</h2>
+                <Link href="/events" className="btn btn-link btn-sm">
+                  {t('dashboard.allEvents', { count: all.length })}
+                  <Icon name="arrow" />
+                </Link>
+              </div>
+              <ul className="event-list">
+                {others.map((e) => (
+                  <li key={e.id}>
+                    <EventCard event={e} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
       )}
     </div>
   );

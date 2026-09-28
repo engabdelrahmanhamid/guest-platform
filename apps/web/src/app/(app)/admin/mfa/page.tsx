@@ -15,7 +15,7 @@ export default async function AdminMfaPage() {
   const t = await getTranslations('auth');
   return (
     <section className="card center-card stack">
-      <div className="success" style={{ padding: '0.5rem 0 0' }}>
+      <div className="success">
         <span className="glyph">
           <Icon name="shield" />
         </span>

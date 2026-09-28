@@ -11,7 +11,7 @@ export default function AppError({
   const t = useTranslations('statusPage');
   return (
     <div className="status-page">
-      <div className="stack" style={{ justifyItems: 'center' }}>
+      <div className="stack center">
         <h1>{t('errorTitle')}</h1>
         <p className="muted">{t('errorBody')}</p>
         <button type="button" className="btn btn-primary" onClick={reset}>

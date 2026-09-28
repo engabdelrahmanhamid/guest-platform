@@ -24,32 +24,38 @@ export default async function NewEventDetailsPage({
   const t = await getTranslations();
   const defaults = await getLifecycleDefaults(getCoreContext().db);
   return (
-    <div className="card" style={{ maxInlineSize: 820, marginInline: 'auto' }}>
+    <div className="wizard">
       <CreateStepper current={2} />
       <div className="page-head">
-        <div>
+        <div className="titles">
+          <Link href={`/events/new/type?category=${category}`} className="back-link">
+            <Icon name="chevronBack" />
+            {t('eventForm.backToType')}
+          </Link>
           <h1>{t('eventForm.detailsTitle')}</h1>
           <p className="lead">{t('eventForm.detailsSubtitle')}</p>
         </div>
         <span className="chosen">
           <Icon name={EVENT_TYPE_ICONS[type] ?? 'sparkle'} />
-          {t(`eventType.${type}`)}
-          <Link href="/events/new">{t('eventForm.changeType')}</Link>
+          {t(`category.${category}`)} · {t(`eventType.${type}`)}
+          <Link href={`/events/new/type?category=${category}`}>{t('eventForm.change')}</Link>
         </span>
       </div>
-      <EventForm
-        action={createEventAction}
-        timezones={TIMEZONES}
-        cancelHref="/dashboard"
-        submitLabel={t('eventForm.create')}
-        values={{
-          category: category!,
-          type,
-          timezone: 'Asia/Riyadh',
-          defaultAllowedCompanions: 0,
-          ...defaults,
-        }}
-      />
+      <div className="panel">
+        <EventForm
+          action={createEventAction}
+          timezones={TIMEZONES}
+          cancelHref="/dashboard"
+          submitLabel={t('eventForm.create')}
+          values={{
+            category: category!,
+            type,
+            timezone: 'Asia/Riyadh',
+            defaultAllowedCompanions: 0,
+            ...defaults,
+          }}
+        />
+      </div>
     </div>
   );
 }

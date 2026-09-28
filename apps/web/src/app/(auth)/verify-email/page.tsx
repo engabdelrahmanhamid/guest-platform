@@ -25,11 +25,8 @@ export default async function VerifyEmailPage({
     }
   }
   return (
-    <div className="success" style={{ padding: 0 }}>
-      <span
-        className="glyph"
-        style={ok ? undefined : { background: 'var(--danger-50)', color: 'var(--danger)' }}
-      >
+    <div className="success">
+      <span className={ok ? 'glyph' : 'glyph is-error'}>
         <Icon name={ok ? 'checkCircle' : 'alert'} />
       </span>
       <h1>{t('auth.verifyTitle')}</h1>

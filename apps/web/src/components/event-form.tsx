@@ -41,16 +41,18 @@ export function EventForm({
   timezones,
   submitLabel,
   cancelHref,
+  timingOpen,
 }: {
   action: (prev: FormState, data: FormData) => Promise<FormState>;
   values: EventFormValues;
   timezones: { value: string; label: string }[];
   submitLabel: string;
   cancelHref: string;
+  /** Show the check-in timing expanded (settings), rather than tucked away (create). */
+  timingOpen?: boolean;
 }) {
   const t = useTranslations('eventForm');
   const tc = useTranslations('common');
-  const optional = tc('optional');
   return (
     <ActionForm action={action}>
       <input type="hidden" name="category" value={values.category} />
@@ -71,7 +73,6 @@ export function EventForm({
         <TextArea
           name="description"
           label={t('description')}
-          optional={optional}
           hint={t('descriptionHint')}
           defaultValue={values.description}
           rows={3}
@@ -95,7 +96,6 @@ export function EventForm({
             name="endsAt"
             type="datetime-local"
             label={t('endsAt')}
-            optional={optional}
             defaultValue={values.endsAt}
             hint={t('endsAtHint', { hours: Math.round(values.assumedDurationMin / 60) })}
           />
@@ -130,18 +130,11 @@ export function EventForm({
             maxLength={80}
           />
         </div>
-        <Field
-          name="address"
-          label={t('address')}
-          optional={optional}
-          defaultValue={values.address}
-          maxLength={300}
-        />
+        <Field name="address" label={t('address')} defaultValue={values.address} maxLength={300} />
         <Field
           name="mapsUrl"
           type="url"
           label={t('mapsUrl')}
-          optional={optional}
           defaultValue={values.mapsUrl}
           hint={t('mapsUrlHint')}
           placeholder="https://maps.app.goo.gl/…"
@@ -153,7 +146,7 @@ export function EventForm({
           <h2>{t('sectionGuests')}</h2>
           <p>{t('sectionGuestsHint')}</p>
         </header>
-        <div style={{ maxInlineSize: 260 }}>
+        <div className="field-narrow">
           <Field
             name="defaultAllowedCompanions"
             type="number"
@@ -165,14 +158,12 @@ export function EventForm({
         </div>
       </section>
 
-      <section className="form-section">
-        <details className="advanced">
+      <section className="form-section" id="timing">
+        <details className="advanced" open={timingOpen}>
           <summary>
             <span>
               {t('lifecycleTitle')}
-              <span className="field-hint" style={{ display: 'block', fontWeight: 400 }}>
-                {t('lifecycleHint')}
-              </span>
+              <span className="field-hint">{t('lifecycleHint')}</span>
             </span>
             <span className="chev">
               <Icon name="chevron" />

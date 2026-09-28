@@ -121,6 +121,8 @@ const PATHS: Record<string, ReactNode> = {
   ),
   chevron: <path d="m6.5 9.5 5.5 5.5 5.5-5.5" />,
   chevronBack: <path d="m9.5 6 6 6-6 6" />,
+  /** Points left: "onward" in right-to-left reading (breadcrumb separators). */
+  chevronOn: <path d="m14.5 6-6 6 6 6" />,
   star: <path d="m12 4 2.4 5 5.4.6-4 3.7 1.1 5.4L12 16l-4.9 2.7 1.1-5.4-4-3.7 5.4-.6L12 4Z" />,
   heart: (
     <path d="M12 19.5s-7.5-4.4-7.5-10A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 7.5 2.5c0 5.6-7.5 10-7.5 10Z" />
@@ -212,6 +214,55 @@ const PATHS: Record<string, ReactNode> = {
   phone: (
     <path d="M6.5 3.5h3l1.5 4-2 1.5a11 11 0 0 0 6 6l1.5-2 4 1.5v3a2 2 0 0 1-2 2A16 16 0 0 1 4.5 5.5a2 2 0 0 1 2-2Z" />
   ),
+  home: (
+    <>
+      <path d="M4 11 12 4.5l8 6.5" />
+      <path d="M6 9.5V19a1 1 0 0 0 1 1h3.5v-5h3v5H17a1 1 0 0 0 1-1V9.5" />
+    </>
+  ),
+  chat: (
+    <path d="M5 18.5V7a2.5 2.5 0 0 1 2.5-2.5h9A2.5 2.5 0 0 1 19 7v6.5a2.5 2.5 0 0 1-2.5 2.5H9l-4 2.5Z" />
+  ),
+  scan: (
+    <>
+      <path d="M4 8.5V6a2 2 0 0 1 2-2h2.5M15.5 4H18a2 2 0 0 1 2 2v2.5M20 15.5V18a2 2 0 0 1-2 2h-2.5M8.5 20H6a2 2 0 0 1-2-2v-2.5" />
+      <path d="M8 12h8" />
+    </>
+  ),
+  chart: (
+    <>
+      <path d="M4.5 19.5h15" />
+      <path d="M7.5 16v-4M12 16V7.5M16.5 16v-6" />
+    </>
+  ),
+  envelope: (
+    <>
+      <rect x="4" y="6" width="16" height="12" rx="2" />
+      <path d="m4.5 7 7.5 5.5L19.5 7" />
+      <path d="M9 3.5h6" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+      <circle cx="12" cy="12" r="2.8" />
+    </>
+  ),
+  arrow: <path d="M19 12H5.5M11 6l-6 6 6 6" />,
+  dotsV: (
+    <>
+      <circle cx="12" cy="6" r="1.3" />
+      <circle cx="12" cy="12" r="1.3" />
+      <circle cx="12" cy="18" r="1.3" />
+    </>
+  ),
+  building: (
+    <>
+      <path d="M5 20.5V5a1.5 1.5 0 0 1 1.5-1.5h7A1.5 1.5 0 0 1 15 5v15.5M15 9.5h3a1.5 1.5 0 0 1 1.5 1.5v9.5M3.5 20.5h17" />
+      <path d="M8.5 7.5h3M8.5 11h3M8.5 14.5h3" />
+    </>
+  ),
+  pulse: <path d="M3.5 12h4l2-5 4 10 2-5h5" />,
   search: (
     <>
       <circle cx="11" cy="11" r="6.5" />

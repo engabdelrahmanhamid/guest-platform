@@ -1,0 +1,5 @@
+pnpm-lock.yaml
+packages/db/migrations/meta/
+.next/
+dist/
+next-env.d.ts

@@ -269,6 +269,45 @@ const PATHS: Record<string, ReactNode> = {
       <path d="m16 16 4 4" />
     </>
   ),
+  upload: (
+    <>
+      <path d="M12 15V4M7.5 8.5 12 4l4.5 4.5" />
+      <path d="M4.5 15v2.5A2.5 2.5 0 0 0 7 20h10a2.5 2.5 0 0 0 2.5-2.5V15" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5" />
+      <path d="M4.5 15v2.5A2.5 2.5 0 0 0 7 20h10a2.5 2.5 0 0 0 2.5-2.5V15" />
+    </>
+  ),
+  filter: <path d="M4 6h16M7 12h10M10 18h4" />,
+  trash: (
+    <>
+      <path d="M4.5 7h15M10 11v6M14 11v6" />
+      <path d="M6.5 7l.8 11.2A2 2 0 0 0 9.3 20h5.4a2 2 0 0 0 2-1.8L17.5 7M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2" />
+    </>
+  ),
+  tag: (
+    <>
+      <path d="M4 12.2V5a1 1 0 0 1 1-1h7.2a1 1 0 0 1 .7.3l7 7a1 1 0 0 1 0 1.4l-7.2 7.2a1 1 0 0 1-1.4 0l-7-7a1 1 0 0 1-.3-.7Z" />
+      <circle cx="8.5" cy="8.5" r="1.3" />
+    </>
+  ),
+  arrowUp: <path d="M12 19V5M6.5 10.5 12 5l5.5 5.5" />,
+  arrowDown: <path d="M12 5v14M6.5 13.5 12 19l5.5-5.5" />,
+  file: (
+    <>
+      <path d="M14 3.5H7.5A2 2 0 0 0 5.5 5.5v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 3.5V8h4.5M9 13h6M9 16.5h4" />
+    </>
+  ),
+  undo: (
+    <>
+      <path d="M9 14 4.5 9.5 9 5" />
+      <path d="M4.5 9.5H14a5.5 5.5 0 0 1 0 11h-3" />
+    </>
+  ),
 };
 
 export type IconName = keyof typeof PATHS;

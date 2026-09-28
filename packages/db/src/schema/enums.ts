@@ -43,3 +43,16 @@ export const actorType = pgEnum('actor_type', [
   'provider',
   'admin',
 ]);
+export const guestStatus = pgEnum('guest_status', ['active', 'cancelled']);
+/** `walk_in` (phase 4) and `api` are reserved; phase 2 creates `manual` and `excel_import`. */
+export const guestSource = pgEnum('guest_source', ['manual', 'excel_import', 'walk_in', 'api']);
+export const importStatus = pgEnum('import_status', [
+  'uploaded',
+  'parsed',
+  'committing',
+  'committed',
+  'failed',
+  'discarded',
+]);
+export const importRowState = pgEnum('import_row_state', ['ready', 'needs_review', 'invalid']);
+export const importDecision = pgEnum('import_decision', ['import', 'skip', 'add_anyway']);

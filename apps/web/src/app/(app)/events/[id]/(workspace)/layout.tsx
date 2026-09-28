@@ -127,6 +127,7 @@ export default async function EventWorkspaceLayout({
             icon: a.icon,
             ready: a.ready,
             ...(a.key === 'settings' ? { also: [`${base}/cancel`] } : {}),
+            ...(a.key === 'guests' ? { also: [`${base}/guests/`] } : {}),
           }))}
         />
       </header>

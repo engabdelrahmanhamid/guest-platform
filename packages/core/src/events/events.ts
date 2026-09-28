@@ -319,6 +319,8 @@ export async function listRecentEventActivity(
         eq(activity.eventId, eventId),
         // The owner's own membership is recorded with the event's creation; it adds nothing.
         sql`not (${activity.type} = 'event_member.added' and ${activity.data}->>'role' = 'owner')`,
+        // Per-guest entries of imports and bulk actions are summed up by their own entry.
+        sql`not (${activity.guestId} is not null and (${activity.data}->>'source' = 'excel_import' or ${activity.data} ? 'bulk' or ${activity.data}->>'reason' = 'group_deleted'))`,
       ),
     )
     .orderBy(desc(activity.id))

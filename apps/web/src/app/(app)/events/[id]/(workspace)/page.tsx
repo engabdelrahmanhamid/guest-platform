@@ -1,4 +1,9 @@
-import { listMemberships, listRecentEventActivity, TRANSITION_ACTIONS } from '@gp/core';
+import {
+  guestSummary,
+  listMemberships,
+  listRecentEventActivity,
+  TRANSITION_ACTIONS,
+} from '@gp/core';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
@@ -6,6 +11,7 @@ import { EmptyState } from '@/components/empty-state';
 import { EVENT_TYPE_ICONS, Icon, type IconName } from '@/components/icons';
 import { loadEventView } from '@/lib/events';
 import {
+  formatCount,
   formatDate,
   formatDateTime,
   formatMinutes,
@@ -37,28 +43,37 @@ export default async function EventOverviewPage({
   const t = await getTranslations();
   const isOwner = view.membership.role === 'owner';
   const ctx = getCoreContext();
-  const [members, activity] = isOwner
+  const [members, activity, guests] = isOwner
     ? await Promise.all([
         listMemberships(ctx, principal.user.id, id),
         listRecentEventActivity(ctx, principal.user.id, id),
+        guestSummary(ctx, principal.user.id, id),
       ])
-    : [[], []];
+    : [[], [], null];
   const staff = members.filter((m) => m.role === 'staff');
   const tz = e.timezone;
   const base = `/events/${id}`;
 
   // Setup readiness only means something before the event runs.
   const showReadiness = isOwner && (e.status === 'draft' || e.status === 'active');
+  const hasGuests = (guests?.active ?? 0) > 0;
   const readiness: { key: string; state: ReadyState; note: string; href?: string }[] = [
     { key: 'details', state: 'done', note: t('readiness.detailsNote') },
+    {
+      key: 'guests',
+      state: hasGuests ? 'done' : 'todo',
+      note: hasGuests
+        ? t('readiness.guestsNote', { count: guests!.active })
+        : t('readiness.guestsTodo'),
+      ...(hasGuests ? {} : { href: `${base}/guests` }),
+    },
+    { key: 'invitation', state: 'later', note: t('readiness.later') },
     {
       key: 'team',
       state: staff.length > 0 ? 'done' : 'todo',
       note: staff.length > 0 ? t('staff.count', { count: staff.length }) : t('readiness.teamNote'),
       ...(staff.length === 0 && view.canManageMembers ? { href: `${base}/settings#team` } : {}),
     },
-    { key: 'guests', state: 'later', note: t('readiness.later') },
-    { key: 'invitation', state: 'later', note: t('readiness.later') },
     {
       key: 'activate',
       state: e.status === 'draft' ? 'todo' : 'done',
@@ -111,6 +126,33 @@ export default async function EventOverviewPage({
                   </li>
                 ))}
               </ol>
+            </section>
+          )}
+
+          {guests && (
+            <section className="section" aria-labelledby="guests-h">
+              <div className="section-head">
+                <h2 id="guests-h">{t('overview.guestsTitle')}</h2>
+                <Link href={`${base}/guests`} className="btn btn-link btn-sm">
+                  {t('overview.guestsLink')}
+                  <Icon name="arrow" />
+                </Link>
+              </div>
+              <dl className="guest-stats guest-stats-3">
+                <div>
+                  <dt>{t('overview.guestsTotal')}</dt>
+                  <dd>{formatCount(guests.total)}</dd>
+                </div>
+                <div>
+                  <dt>{t('overview.guestsActive')}</dt>
+                  <dd>{formatCount(guests.active)}</dd>
+                </div>
+                <div className="is-capacity">
+                  <dt>{t('overview.guestsCapacity')}</dt>
+                  <dd>{formatCount(guests.potentialCapacity)}</dd>
+                  <p>{t('overview.guestsCapacityHint')}</p>
+                </div>
+              </dl>
             </section>
           )}
 

@@ -1,0 +1,16 @@
+{
+  "name": "@gp/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@gp/core": "workspace:*",
+    "pg-boss": "12.35.0",
+    "tsx": "4.23.15"
+  }
+}

@@ -1,0 +1,14 @@
+# Local development only. Production runs on managed PostgreSQL in a Saudi cloud region.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: guest_platform
+      POSTGRES_PASSWORD: guest_platform
+      POSTGRES_DB: guest_platform
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:

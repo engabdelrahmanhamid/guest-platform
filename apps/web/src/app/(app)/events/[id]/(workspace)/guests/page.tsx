@@ -1,5 +1,7 @@
 import {
   formatPhone,
+  GUEST_INVITE_FILTERS,
+  GUEST_RSVP_FILTERS,
   GUEST_SORTS,
   guestSummary,
   guestsEditable,
@@ -24,6 +26,15 @@ import { guestsHref, pickParams, UUID } from '@/lib/guests';
 import { getCoreContext } from '@/lib/server';
 import { bulkAction } from './actions';
 import { GuestPanels } from './panels';
+
+function InviteState({ state, label }: { state: string; label: string }) {
+  return (
+    <span className={`share-state share-state-${state}`}>
+      <span className="dot" aria-hidden="true" />
+      {label}
+    </span>
+  );
+}
 
 export const metadata: Metadata = { title: 'الضيوف' };
 
@@ -69,10 +80,17 @@ export default async function GuestsPage({
   const q = sp.q?.trim() ?? '';
   const status = sp.status === 'active' || sp.status === 'cancelled' ? sp.status : 'all';
   const source = sp.source === 'manual' || sp.source === 'excel_import' ? sp.source : 'all';
+  const rsvp = (GUEST_RSVP_FILTERS as readonly string[]).includes(sp.rsvp ?? '') ? sp.rsvp! : 'all';
+  const invite = (GUEST_INVITE_FILTERS as readonly string[]).includes(sp.invite ?? '')
+    ? sp.invite!
+    : 'all';
   const group = sp.group === 'none' || (sp.group && UUID.test(sp.group)) ? sp.group : 'all';
   const sort = (GUEST_SORTS as readonly string[]).includes(sp.sort ?? '') ? sp.sort! : 'recent';
   const groupName = (gid: string) => groups.find((g) => g.id === gid)?.name ?? '';
-  const chips: { label: string; key: 'q' | 'status' | 'group' | 'source' }[] = [
+  const chips: {
+    label: string;
+    key: 'q' | 'status' | 'group' | 'source' | 'rsvp' | 'invite';
+  }[] = [
     ...(q ? [{ label: `«${q}»`, key: 'q' as const }] : []),
     ...(status !== 'all' ? [{ label: t(`guests.status.${status}`), key: 'status' as const }] : []),
     ...(group !== 'all'
@@ -84,6 +102,8 @@ export default async function GuestsPage({
         ]
       : []),
     ...(source !== 'all' ? [{ label: t(`guests.source.${source}`), key: 'source' as const }] : []),
+    ...(rsvp !== 'all' ? [{ label: t(`guests.rsvp.${rsvp}`), key: 'rsvp' as const }] : []),
+    ...(invite !== 'all' ? [{ label: t(`guests.invite.${invite}`), key: 'invite' as const }] : []),
   ];
   const filtered = chips.length > 0;
   const activeFilters = chips.filter((c) => c.key !== 'q').length;
@@ -261,6 +281,28 @@ export default async function GuestsPage({
                     </select>
                   </label>
                   <label className="mini-field">
+                    <span>{t('guests.filters.rsvp')}</span>
+                    <select name="rsvp" defaultValue={rsvp}>
+                      <option value="all">{t('guests.filters.allRsvp')}</option>
+                      {GUEST_RSVP_FILTERS.filter((r) => r !== 'all').map((r) => (
+                        <option key={r} value={r}>
+                          {t(`guests.rsvp.${r}`)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="mini-field">
+                    <span>{t('guests.filters.invite')}</span>
+                    <select name="invite" defaultValue={invite}>
+                      <option value="all">{t('guests.filters.allInvite')}</option>
+                      {GUEST_INVITE_FILTERS.filter((r) => r !== 'all').map((r) => (
+                        <option key={r} value={r}>
+                          {t(`guests.invite.${r}`)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="mini-field">
                     <span>{t('guests.filters.source')}</span>
                     <select name="source" defaultValue={source}>
                       <option value="all">{t('guests.filters.allSources')}</option>
@@ -349,8 +391,9 @@ export default async function GuestsPage({
                         <th className="c-name">{t('guests.columns.guest')}</th>
                         <th className="c-phone">{t('guests.columns.phone')}</th>
                         <th className="c-group">{t('guests.columns.group')}</th>
+                        <th className="c-invite">{t('guests.columns.invitation')}</th>
+                        <th className="c-rsvp">{t('guests.columns.rsvp')}</th>
                         <th className="c-comp">{t('guests.columns.companions')}</th>
-                        <th className="c-source">{t('guests.columns.source')}</th>
                         <th className="c-status">{t('guests.columns.status')}</th>
                         <th className="c-added">{t('guests.columns.added')}</th>
                       </tr>
@@ -392,18 +435,32 @@ export default async function GuestsPage({
                           <td className="c-group">
                             {g.groupName ?? <span className="muted">—</span>}
                           </td>
+                          <td className="c-invite">
+                            <InviteState
+                              state={
+                                g.openedAt ? 'opened' : g.shareCount > 0 ? 'shared' : 'not_shared'
+                              }
+                              label={t(
+                                `guests.invite.${g.openedAt ? 'opened' : g.shareCount > 0 ? 'shared' : 'not_shared'}`,
+                              )}
+                            />
+                          </td>
+                          <td className="c-rsvp">
+                            <span className={`rsvp rsvp-${g.rsvpStatus}`}>
+                              {t(`guests.rsvp.${g.rsvpStatus}`)}
+                            </span>
+                          </td>
                           <td className="c-comp">
                             <span
                               className="comp"
                               title={t('guests.companionsLabel', { count: g.allowedCompanions })}
                             >
-                              {t('guests.companionsShort', { count: g.allowedCompanions })}
-                            </span>
-                          </td>
-                          <td className="c-source">
-                            <span className="src">
-                              <Icon name={g.source === 'excel_import' ? 'file' : 'edit'} />
-                              {t(`guests.source.${g.source}`)}
+                              {g.rsvpStatus === 'confirmed'
+                                ? t('guests.companionsOf', {
+                                    count: formatCount(g.companionCount),
+                                    allowed: formatCount(g.allowedCompanions),
+                                  })
+                                : t('guests.companionsShort', { count: g.allowedCompanions })}
                             </span>
                           </td>
                           <td className="c-status">

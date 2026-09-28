@@ -8,6 +8,7 @@ import { MemoryMailer } from '../identity/mailer';
 import { beginTotpEnrollment, confirmTotpEnrollment } from '../identity/totp';
 import { Secret, TOTP } from 'otpauth';
 import type { CoreContext } from '../shared/context';
+import { MemoryStorage } from '../storage/storage';
 
 /**
  * Integration-test support. Tests run against the migrated database in DATABASE_URL and
@@ -18,6 +19,7 @@ export const databaseUrl = process.env.DATABASE_URL;
 
 export interface TestContext extends CoreContext {
   mailer: MemoryMailer;
+  storage: MemoryStorage;
   clock: { now: Date };
 }
 
@@ -28,6 +30,7 @@ export function createTestContext(start = new Date('2030-01-01T09:00:00Z')): Tes
   return {
     db: createDatabase(pool),
     mailer: new MemoryMailer(),
+    storage: new MemoryStorage(),
     encryptionKey: randomBytes(32),
     appBaseUrl: 'http://localhost:3000',
     now: () => clock.now,

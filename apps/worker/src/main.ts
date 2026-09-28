@@ -1,5 +1,11 @@
 import { createServer } from 'node:http';
-import { createLogger, loadConfig, purgeImportRows, runLifecycleTick } from '@gp/core';
+import {
+  createLogger,
+  loadConfig,
+  purgeImportRows,
+  purgeRateLimits,
+  runLifecycleTick,
+} from '@gp/core';
 import { createDatabase, createPool, pingDatabase } from '@gp/db';
 import { PgBoss } from 'pg-boss';
 
@@ -17,6 +23,7 @@ boss.on('error', (err) => log.error({ err }, 'job queue error'));
 const HEARTBEAT = 'system.heartbeat';
 const LIFECYCLE_TICK = 'events.lifecycle-tick';
 const PURGE_IMPORT_ROWS = 'guests.purge-import-rows';
+const PURGE_RATE_LIMITS = 'system.purge-rate-limits';
 
 await boss.start();
 await boss.createQueue(HEARTBEAT);
@@ -42,6 +49,14 @@ await boss.work(PURGE_IMPORT_ROWS, async () => {
   if (purged) log.info({ purged }, 'purged staged import rows');
 });
 await boss.schedule(PURGE_IMPORT_ROWS, '17 3 * * *');
+
+// Rate-limit counters (sign-in and public invitation pages) are only useful for a short window.
+await boss.createQueue(PURGE_RATE_LIMITS);
+await boss.work(PURGE_RATE_LIMITS, async () => {
+  const purged = await purgeRateLimits(db, new Date());
+  if (purged) log.info({ purged }, 'purged old rate-limit counters');
+});
+await boss.schedule(PURGE_RATE_LIMITS, '41 * * * *');
 
 // Health endpoint for the container orchestrator: up only while the database answers.
 const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 8081);

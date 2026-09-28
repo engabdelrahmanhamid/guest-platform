@@ -30,3 +30,24 @@ export async function consumeRateLimit(
     });
   }
 }
+
+/** Whether a bucket is already over `limit` in its current window, without counting a hit. */
+export async function isRateLimited(
+  db: DbOrTx,
+  bucket: string,
+  limit: number,
+  windowSeconds: number,
+  now: Date,
+): Promise<boolean> {
+  const cutoff = new Date(now.getTime() - windowSeconds * 1000);
+  const result = await db.execute<{ count: number }>(sql`
+    SELECT count FROM auth_rate_limits WHERE bucket = ${bucket} AND window_start >= ${cutoff}`);
+  return Number(result.rows[0]?.count ?? 0) > limit;
+}
+
+/** Drops counters whose window ended long ago (they would restart at 1 anyway). */
+export async function purgeRateLimits(db: DbOrTx, now: Date): Promise<number> {
+  const result = await db.execute(sql`
+    DELETE FROM auth_rate_limits WHERE window_start < ${new Date(now.getTime() - 86_400_000)}`);
+  return result.rowCount ?? 0;
+}

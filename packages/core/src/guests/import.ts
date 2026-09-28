@@ -8,6 +8,7 @@ import { newId } from '../shared/ids';
 import { parsePhone, toAsciiDigits } from '../shared/phone';
 import { cleanText, searchForm } from '../shared/text';
 import { requireGuestManagement, requireGuestView } from './access';
+import { createGuestLifecycle } from '../lifecycle/records';
 import { groupKey, insertGroup, MAX_GROUPS_PER_EVENT } from './groups';
 import { EMAIL_MAX, MAX_COMPANIONS, NAME_MAX, NOTES_MAX } from './schemas';
 import { IMPORT_LIMITS, readSpreadsheet, type SheetColumn, writeXlsx } from './spreadsheet';
@@ -910,6 +911,11 @@ export async function commitImport(
       FROM guests g
       WHERE g.import_row_id = r.id AND r.batch_id = ${batchId}`);
 
+    const lifecycle = await createGuestLifecycle(
+      tx,
+      newGuests.map((g) => ({ id: g.id, eventId })),
+      { actor, workspaceId: event.workspaceId, now: ctx.now() },
+    );
     for (const [i, g] of newGuests.entries()) {
       entries.push({
         type: 'guest.created',
@@ -925,6 +931,7 @@ export async function commitImport(
         },
       });
     }
+    entries.push(...lifecycle);
     const skipped = staged.length - chosen.length;
     entries.push({
       type: 'guest_import.committed',

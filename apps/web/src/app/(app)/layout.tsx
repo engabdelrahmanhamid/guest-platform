@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
+import { ProductShell } from '@/components/product-shell';
 import { Brand } from '@/components/brand';
 import { Icon } from '@/components/icons';
 import { Menu } from '@/components/menu';
@@ -46,70 +47,72 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const devOutbox = getDevOutbox() !== null;
 
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <Brand name={t('app.name')} href="/dashboard" />
-        <NavLinks items={product} label={t('nav.product')} variant="side" />
-        {isAdmin && (
-          <div className="navgroup">
-            <span className="navgroup-title">{t('nav.platform')}</span>
-            <NavLinks items={admin} label={t('nav.platform')} variant="side" />
-          </div>
-        )}
-        <div className="sidebar-foot">
-          {devOutbox && (
-            <p className="devnote">
-              {t('dev.banner')} <a href="/dev/outbox">{t('dev.outbox')}</a>
-            </p>
+    <ProductShell>
+      <div className="app">
+        <aside className="sidebar">
+          <Brand name={t('app.name')} href="/dashboard" />
+          <NavLinks items={product} label={t('nav.product')} variant="side" />
+          {isAdmin && (
+            <div className="navgroup">
+              <span className="navgroup-title">{t('nav.platform')}</span>
+              <NavLinks items={admin} label={t('nav.platform')} variant="side" />
+            </div>
           )}
-          <div className="account">
-            <span className="avatar" aria-hidden="true">
-              {initials(fullName)}
-            </span>
+          <div className="sidebar-foot">
+            {devOutbox && (
+              <p className="devnote">
+                {t('dev.banner')} <a href="/dev/outbox">{t('dev.outbox')}</a>
+              </p>
+            )}
+            <div className="account">
+              <span className="avatar" aria-hidden="true">
+                {initials(fullName)}
+              </span>
+              <span className="who">
+                <span>{fullName}</span>
+                <span className="ltr">{email}</span>
+              </span>
+              {logout}
+            </div>
+          </div>
+        </aside>
+
+        <header className="mobilebar">
+          <Brand name={t('app.name')} href="/dashboard" />
+          <Menu
+            label={t('nav.account')}
+            summary={
+              <span className="avatar" aria-hidden="true">
+                {initials(fullName)}
+              </span>
+            }
+          >
             <span className="who">
               <span>{fullName}</span>
               <span className="ltr">{email}</span>
             </span>
-            {logout}
-          </div>
+            <hr className="menu-sep" />
+            {devOutbox && (
+              <a className="menu-item" href="/dev/outbox">
+                <Icon name="mail" />
+                {t('dev.outbox')}
+              </a>
+            )}
+            <form action={logoutAction}>
+              <button type="submit">
+                <Icon name="logout" />
+                {t('nav.logout')}
+              </button>
+            </form>
+          </Menu>
+        </header>
+
+        <div className="main">
+          <main className="main-inner">{children}</main>
         </div>
-      </aside>
 
-      <header className="mobilebar">
-        <Brand name={t('app.name')} href="/dashboard" />
-        <Menu
-          label={t('nav.account')}
-          summary={
-            <span className="avatar" aria-hidden="true">
-              {initials(fullName)}
-            </span>
-          }
-        >
-          <span className="who">
-            <span>{fullName}</span>
-            <span className="ltr">{email}</span>
-          </span>
-          <hr className="menu-sep" />
-          {devOutbox && (
-            <a className="menu-item" href="/dev/outbox">
-              <Icon name="mail" />
-              {t('dev.outbox')}
-            </a>
-          )}
-          <form action={logoutAction}>
-            <button type="submit">
-              <Icon name="logout" />
-              {t('nav.logout')}
-            </button>
-          </form>
-        </Menu>
-      </header>
-
-      <div className="main">
-        <main className="main-inner">{children}</main>
+        <NavLinks items={bottom} label={t('nav.product')} variant="bottom" />
       </div>
-
-      <NavLinks items={bottom} label={t('nav.product')} variant="bottom" />
-    </div>
+    </ProductShell>
   );
 }

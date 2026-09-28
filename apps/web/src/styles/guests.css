@@ -367,6 +367,64 @@
   color: var(--text-tertiary);
 }
 
+/* Invitation share state and the guest's answer. "Shared" never claims delivery. */
+.share-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-tertiary);
+}
+
+.share-state .dot {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+}
+
+.share-state-shared {
+  color: var(--info);
+}
+
+.share-state-shared .dot {
+  background: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+.share-state-opened {
+  color: var(--brand-primary);
+}
+
+.share-state-opened .dot {
+  background: currentColor;
+}
+
+.rsvp {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rsvp-pending {
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.rsvp-confirmed {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.rsvp-declined {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 /* Phones and small tablets: each guest becomes a compact card row. */
 @media (max-width: 760px) {
   .guest-table thead {
@@ -384,6 +442,7 @@
     grid-template-areas:
       'check name status'
       'check phone comp'
+      'check invite rsvp'
       'check group group';
     gap: 0.15rem 0.6rem;
     padding: 0.75rem 0.9rem;
@@ -421,6 +480,16 @@
 
   .guest-table .c-comp {
     grid-area: comp;
+    justify-self: end;
+  }
+
+  .guest-table .c-invite {
+    grid-area: invite;
+    padding-inline-start: 2.65rem;
+  }
+
+  .guest-table .c-rsvp {
+    grid-area: rsvp;
     justify-self: end;
   }
 

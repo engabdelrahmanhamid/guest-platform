@@ -302,6 +302,20 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M14 3.5V8h4.5M9 13h6M9 16.5h4" />
     </>
   ),
+  link: (
+    <>
+      <path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2" />
+      <path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2" />
+    </>
+  ),
+  qr: (
+    <>
+      <rect x="4" y="4" width="6" height="6" rx="1" />
+      <rect x="14" y="4" width="6" height="6" rx="1" />
+      <rect x="4" y="14" width="6" height="6" rx="1" />
+      <path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2" />
+    </>
+  ),
   undo: (
     <>
       <path d="M9 14 4.5 9.5 9 5" />

@@ -33,8 +33,6 @@ const DETAIL_FIELDS = [
   'address',
   'mapsUrl',
   'description',
-  'coverImageKey',
-  'logoKey',
   'defaultAllowedCompanions',
   'autoOpenCheckin',
   'checkinOpensOffsetMin',

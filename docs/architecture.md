@@ -71,6 +71,51 @@ or fill a gap in it, and stay open until the product owner confirms them.
   and rows are re-checked against the current list before anything is written. Staged rows are
   deleted 30 days after an import ends.
 
+## Guest experience (phase 3)
+
+Implementation choices made in phase 3. Items marked _awaiting approval_ differ from the proposal
+or fill a gap in it.
+
+- Invitation, RSVP, pass and design are separate tables (`invitations`, `rsvps`, `guest_passes`,
+  `invitation_designs`, plus `message_templates` for the share text). Each guest gets one
+  invitation and one `pending` RSVP when it is created; migration 0004 backfills existing guests.
+- Invitation and pass tokens are 22 random base62 characters (about 131 bits), separate from each
+  other, stored in plain text so the owner can re-share the link, and never logged. The link is
+  `/i/<token>` with no id or phone in it. Rotating a link replaces the token at once.
+- Delivery status: phase 3 uses `not_sent` and `shared` only ("shared" = the owner opened WhatsApp
+  with the message or copied the link or message; it never means delivered). `queued`, `sent`,
+  `delivered`, `read` and `failed` exist for the messaging phase. Share records live on the
+  invitation and in activity; `messages`/`message_batches` wait for phase 5.
+- Opens are counted by a script beacon after the page has been visible for about a second, so
+  link-preview bots never count. Visits less than 30 minutes apart are one open. Answering also
+  counts as an open.
+- RSVP: `pending → confirmed | declined`, `confirmed ↔ declined`, never back to pending; no
+  "maybe". Declining sets companions to 0 and revokes the pass; confirming again issues a new
+  pass token. Repeating the current answer writes nothing. The owner may record an answer (history
+  names the owner's membership) while the event is active or live.
+- At most one active pass per guest (unique partial index), and a deferred constraint trigger
+  keeps "active pass ⇔ active guest with a confirmed RSVP". A pass is never revoked on its own:
+  it is revoked by declining, by cancelling the guest, or by being replaced with a new one.
+  Cancelling an event revokes nothing; the pass shows as cancelled from the event state.
+- Guest page by event state: draft or disabled → "not available" with no personal data;
+  active and live → invitation with RSVP; completed → read-only, pass shown as ended;
+  cancelled → cancellation notice, no pass; **archived → read-only like completed, or the
+  cancellation notice if the event was cancelled before archiving**. _Awaiting approval._
+- Sharing and the links export are allowed while the event is active or live (not in draft).
+  The design and share text can be edited while the event is draft, active or live.
+- Design: four templates (elegant, celebration, formal, minimal), one primary colour (custom
+  colours must keep white text at 4.5:1 or more), title, message, seven show/hide switches.
+  Cover and logo are JPEG/PNG/WebP, checked by content, re-encoded to WebP without metadata,
+  stored in private object storage under random keys, and served through `/media/…` only once the
+  event is published (the owner can see them earlier for the preview).
+- Public pages: rate limits per client (a keyed hash of the IP, never the IP) and per link; a
+  client that presents more than 30 unknown tokens in 15 minutes is blocked for the window.
+  Responses are `private, no-store`, `noindex`, and `Referrer-Policy: same-origin` (not
+  `no-referrer` as in the proposal: under `no-referrer` browsers send `Origin: null` on form
+  posts, which breaks the RSVP form without JavaScript; the token still never reaches other
+  sites). _Awaiting approval._
+- Hard delete is refused once the invitation was shared or opened or the guest answered.
+
 ## Phases
 
 0 setup · 1 foundation · 2 guest management · 3 guest experience · 4 check-in ·

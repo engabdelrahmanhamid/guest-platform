@@ -51,7 +51,10 @@ export function dateTile(date: Date, timeZone: string): { month: string; day: st
 
 /** "3 ساعات" style durations for lifecycle offsets. */
 /** Arabic count agreement: one, two, 3–10 (plural) and 11+ (singular accusative). */
-function arabicCount(n: number, [one, two, few, many]: [string, string, string, string]): string {
+export function arabicCount(
+  n: number,
+  [one, two, few, many]: [string, string, string, string],
+): string {
   if (n === 1) return one;
   if (n === 2) return two;
   const mod = n % 100;
@@ -98,4 +101,16 @@ export function formatBytes(n: number): string {
   if (n < 1024) return `${formatCount(n)} B`;
   if (n < 1024 * 1024) return `${formatCount(Math.round(n / 1024))} KB`;
   return `${new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 }).format(n / 1024 / 1024)} MB`;
+}
+
+/** Who is coming: "أنت فقط", "أنت ومرافق واحد", "أنت ومرافقان", "أنت و3 مرافقين". */
+export function partyText(companions: number): string {
+  if (companions <= 0) return 'أنت فقط';
+  return `أنت و${arabicCount(companions, ['مرافق واحد', 'مرافقان', 'مرافقين', 'مرافقًا'])}`;
+}
+
+/** "مرافق واحد", "مرافقان", "3 مرافقين" for the owner's screens. */
+export function companionsText(n: number): string {
+  if (n === 0) return 'بدون مرافقين';
+  return arabicCount(n, ['مرافق واحد', 'مرافقان', 'مرافقين', 'مرافقًا']);
 }

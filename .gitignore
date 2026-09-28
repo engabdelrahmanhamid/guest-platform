@@ -12,3 +12,6 @@ next-env.d.ts
 # Written by `next dev`; not project documentation.
 apps/web/AGENTS.md
 apps/web/CLAUDE.md
+
+# Local object storage (development only).
+.data/

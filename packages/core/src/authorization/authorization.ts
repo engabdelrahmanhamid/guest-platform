@@ -19,6 +19,8 @@ export const EVENT_CAPABILITIES = [
   'activity.view',
   'guests.view',
   'guests.manage',
+  'invitations.manage',
+  'rsvp.manage',
 ] as const;
 export type EventCapability = (typeof EVENT_CAPABILITIES)[number];
 
@@ -42,14 +44,15 @@ export interface EventAccess {
 
 /**
  * Loads the event with the caller's membership and checks `capability`.
- * Pass `forUpdate` inside a transaction to lock the event row for the rest of it.
+ * Pass `forUpdate` inside a transaction to lock the event row for the rest of it, or `forShare`
+ * to keep its state from changing (a state change waits) while other guest writes go on.
  */
 export async function requireEventAccess(
   db: DbOrTx,
   userId: string,
   eventId: string,
   capability: EventCapability,
-  opts: { forUpdate?: boolean } = {},
+  opts: { forUpdate?: boolean; forShare?: boolean } = {},
 ): Promise<EventAccess> {
   const base = db
     .select({ event: events, membership: eventMemberships })
@@ -63,7 +66,11 @@ export async function requireEventAccess(
       ),
     )
     .where(eq(events.id, eventId));
-  const [row] = await (opts.forUpdate ? base.for('update', { of: events }) : base);
+  const [row] = await (opts.forUpdate
+    ? base.for('update', { of: events })
+    : opts.forShare
+      ? base.for('share', { of: events })
+      : base);
   if (!row) throw new DomainError('not_found');
 
   const { membership } = row;

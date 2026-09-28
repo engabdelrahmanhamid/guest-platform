@@ -1,13 +1,8 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Sans_Arabic } from 'next/font/google';
-import { NextIntlClientProvider } from 'next-intl';
 import type { ReactNode } from 'react';
 import '../styles/tokens.css';
 import '../styles/base.css';
-import '../styles/components.css';
-import '../styles/shell.css';
-import '../styles/pages.css';
-import '../styles/guests.css';
 
 const font = IBM_Plex_Sans_Arabic({
   subsets: ['arabic', 'latin'],
@@ -21,13 +16,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-// Arabic-first: RTL by default.
+// Arabic-first: RTL by default. The product UI's styles and client messages load in the
+// (app), (auth) and dev layouts, so guests' invitation pages don't download them.
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ar" dir="rtl" className={font.variable}>
-      <body>
-        <NextIntlClientProvider>{children}</NextIntlClientProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

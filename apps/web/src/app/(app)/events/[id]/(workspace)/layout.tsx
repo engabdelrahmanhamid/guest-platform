@@ -100,11 +100,10 @@ export default async function EventWorkspaceLayout({
                   <Icon name={view.canEdit ? 'edit' : 'settings'} />
                   {view.canEdit ? t('workspace.editDetails') : t('workspace.areas.settings')}
                 </Link>
-                <span className="menu-item" aria-disabled="true">
+                <a href={`${base}/preview`} target="_blank" rel="noopener" className="menu-item">
                   <Icon name="eye" />
-                  <span className="grow">{t('workspace.preview')}</span>
-                  <span className="tag">{t('workspace.soon')}</span>
-                </span>
+                  {t('workspace.preview')}
+                </a>
                 {canCancel && (
                   <>
                     <hr className="menu-sep" />

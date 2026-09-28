@@ -41,12 +41,12 @@ export function groupActions(allowed: TransitionAction[]) {
   };
 }
 
-/** Event workspace areas. Overview, Guests and Settings work in this release. */
+/** Event workspace areas. Check-in and Reports come in later phases. */
 export const WORKSPACE_AREAS = [
   { key: 'overview', path: '', icon: 'grid', ready: true },
   { key: 'guests', path: '/guests', icon: 'users', ready: true },
-  { key: 'invitation', path: '/invitation', icon: 'envelope', ready: false },
-  { key: 'messages', path: '/messages', icon: 'chat', ready: false },
+  { key: 'invitation', path: '/invitation', icon: 'envelope', ready: true },
+  { key: 'messages', path: '/messages', icon: 'chat', ready: true },
   { key: 'checkin', path: '/checkin', icon: 'scan', ready: false },
   { key: 'reports', path: '/reports', icon: 'chart', ready: false },
   { key: 'settings', path: '/settings', icon: 'settings', ready: true },

@@ -25,5 +25,10 @@ export {
 export * from './admin/admin';
 export { runLifecycleTick, type TickResult } from './scheduler/lifecycle-scheduler';
 export * from './guests';
+export * from './lifecycle';
+export * from './storage';
+export { isPublicToken } from './shared/tokens';
+export { DISPLAY_LOCALE, formatEventDate, formatEventTime } from './shared/datetime';
 export { formatPhone, parsePhone, phoneSearchDigits, type PhoneProblem } from './shared/phone';
 export { searchForm } from './shared/text';
+export { purgeRateLimits } from './identity/rate-limit';

@@ -11,15 +11,25 @@ import {
   grantPlatformAdmin,
   isDomainError,
   loadConfig,
+  LocalDiskStorage,
   MemoryMailer,
+  recordInvitationOpen,
+  recordInvitationShare,
+  respondToInvitation,
+  saveInvitationDesign,
+  setGuestRsvp,
   signUp,
   transitionEvent,
   type TransitionAction,
+  uploadEventImage,
   utcToLocal,
   verifyEmail,
   writeXlsx,
 } from '@gp/core';
 import { createDatabase, createPool } from '@gp/db';
+import { guests, invitations } from '@gp/db/schema';
+import { and, asc, eq } from 'drizzle-orm';
+import sharp from 'sharp';
 
 // Review data for local and staging demos: pnpm demo:seed
 // Creates a demo owner with one event in each lifecycle state (two of them with guests), and a
@@ -39,6 +49,7 @@ const ADMIN = { email: 'admin@demo.test', fullName: 'فريق إدارة الم�
 
 const pool = createPool(config.DATABASE_URL, 2);
 const mailer = new MemoryMailer();
+const storage = new LocalDiskStorage(config.LOCAL_STORAGE_DIR);
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const realNow = Date.now();
@@ -46,6 +57,7 @@ const realNow = Date.now();
 const at = (offsetMs: number): CoreContext => ({
   db: createDatabase(pool),
   mailer,
+  storage,
   encryptionKey: config.APP_ENCRYPTION_KEY,
   appBaseUrl: config.APP_BASE_URL,
   now: () => new Date(realNow + offsetMs),
@@ -74,6 +86,10 @@ interface DemoEvent {
   staff?: { displayName: string; phone?: string; isSupervisor?: boolean }[];
   /** Transitions and how long ago each happened. */
   history?: [TransitionAction, number, string?][];
+  /** Invitation look, and a generated cover in these two colours. */
+  design?: { template: string; color: string; bodyText?: string; cover?: [string, string] };
+  /** Share, open and answer the first guests' invitations (counts of active guests). */
+  responses?: { shared: number; opened: number };
 }
 
 const EVENTS: DemoEvent[] = [
@@ -103,6 +119,13 @@ const EVENTS: DemoEvent[] = [
       cancelled: 3,
     },
     history: [['activate', 5 * DAY]],
+    design: {
+      template: 'elegant',
+      color: '#7a5a2b',
+      bodyText: 'بقلوب ملؤها الفرح، نتشرف بدعوتكم لمشاركتنا ليلة العمر.',
+      cover: ['#e9dfcc', '#b89a6a'],
+    },
+    responses: { shared: 38, opened: 30 },
   },
   {
     createdAgo: 14 * DAY,
@@ -125,6 +148,8 @@ const EVENTS: DemoEvent[] = [
       ['activate', 13 * DAY],
       ['start', 2 * HOUR],
     ],
+    design: { template: 'formal', color: '#1f3a5f', cover: ['#dbe3ee', '#5d7aa3'] },
+    responses: { shared: 150, opened: 120 },
   },
   {
     createdAgo: 2 * HOUR,
@@ -287,6 +312,50 @@ async function seedGuests(
   }
 }
 
+/** A soft abstract cover, drawn here so the demo has real images to show. */
+async function demoCover([from, to]: [string, string]) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient></defs>
+    <rect width="1600" height="900" fill="url(#g)"/>
+    ${Array.from({ length: 9 }, (_, i) => `<circle cx="${180 + i * 170}" cy="${450 + Math.sin(i) * 220}" r="${90 + (i % 3) * 60}" fill="#ffffff" opacity="${0.06 + (i % 4) * 0.03}"/>`).join('')}
+  </svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+/** Shares, opens and answers, so the guest list and overview show a real mix of states. */
+async function seedResponses(
+  ctx: CoreContext,
+  ownerId: string,
+  eventId: string,
+  spec: NonNullable<DemoEvent['responses']>,
+) {
+  const rows = await ctx.db
+    .select({ id: guests.id, token: invitations.token, allowed: guests.allowedCompanions })
+    .from(guests)
+    .innerJoin(invitations, eq(invitations.guestId, guests.id))
+    .where(and(eq(guests.eventId, eventId), eq(guests.status, 'active')))
+    .orderBy(asc(guests.createdAt), asc(guests.id));
+  for (const [i, g] of rows.entries()) {
+    if (i < spec.shared) await recordInvitationShare(ctx, ownerId, eventId, g.id, 'whatsapp');
+    if (i >= spec.opened) continue;
+    await recordInvitationOpen(ctx, g.token);
+    const kind = i % 10;
+    if (kind <= 5) {
+      await respondToInvitation(ctx, g.token, {
+        status: 'confirmed',
+        companions: Math.min(i % 3, g.allowed),
+      });
+    } else if (kind <= 7) {
+      await respondToInvitation(ctx, g.token, { status: 'declined' });
+    }
+  }
+  // Two answers the owner took by phone.
+  for (const g of rows.slice(spec.opened, spec.opened + 2)) {
+    await setGuestRsvp(ctx, ownerId, eventId, g.id, { status: 'confirmed', companions: 0 });
+  }
+}
+
 try {
   const ownerId = await createAccount(OWNER);
   const adminId = await createAccount(ADMIN);
@@ -298,9 +367,28 @@ try {
       await addStaff(at(-e.createdAgo + HOUR), ownerId, eventId, s);
     }
     if (e.guests) await seedGuests(at(-e.createdAgo + 2 * HOUR), ownerId, eventId, e.guests);
+    if (e.design) {
+      const ctx = at(-e.createdAgo + 3 * HOUR);
+      await saveInvitationDesign(ctx, ownerId, eventId, {
+        template: e.design.template,
+        primaryColor: e.design.color,
+        bodyText: e.design.bodyText ?? '',
+        showDate: 'on',
+        showTime: 'on',
+        showVenue: 'on',
+        showAddress: 'on',
+        showMap: 'on',
+        showDescription: 'on',
+        showCountdown: 'on',
+      });
+      if (e.design.cover) {
+        await uploadEventImage(ctx, ownerId, eventId, 'cover', await demoCover(e.design.cover));
+      }
+    }
     for (const [action, ago, reason] of e.history ?? []) {
       await transitionEvent(at(-ago), ownerId, eventId, action, reason ? { reason } : {});
     }
+    if (e.responses) await seedResponses(at(-1 * HOUR), ownerId, eventId, e.responses);
   }
   log.info({ ownerId, adminId, events: EVENTS.length }, 'demo data seeded');
 } catch (err) {

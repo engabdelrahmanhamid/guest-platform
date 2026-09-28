@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
+import '../styles/components.css';
+import '../styles/pages.css';
 
 export default async function NotFound() {
   const t = await getTranslations('statusPage');

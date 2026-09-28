@@ -8,6 +8,20 @@
       "when": 1790593999002,
       "tag": "0000_extensions",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790597234219,
+      "tag": "0001_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790597235372,
+      "tag": "0002_append_only_and_settings",
+      "breakpoints": true
     }
   ]
 }

@@ -35,4 +35,6 @@ ENV NODE_ENV=production
 COPY . .
 RUN addgroup -S app && adduser -S app -G app && chown -R app:app /app
 USER app
+ENV WORKER_HEALTH_PORT=8081
+HEALTHCHECK CMD wget -qO- http://localhost:8081/health || exit 1
 CMD ["apps/worker/node_modules/.bin/tsx", "apps/worker/src/main.ts"]

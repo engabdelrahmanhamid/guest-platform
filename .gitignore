@@ -8,3 +8,7 @@ coverage/
 !.env.example
 .DS_Store
 next-env.d.ts
+
+# Written by `next dev`; not project documentation.
+apps/web/AGENTS.md
+apps/web/CLAUDE.md

@@ -20,13 +20,23 @@ pnpm dev            # web on http://localhost:3000, worker alongside
 ```
 
 The dev scripts don't load `.env` automatically. Export the variables in your shell first
-(for example with `set -a; . ./.env; set +a`).
+(for example with `set -a; . ./.env; set +a`). Generate `APP_ENCRYPTION_KEY` with
+`openssl rand -base64 32`. Don't export `NODE_ENV=development` when running `pnpm build`.
+
+- Account emails (verification, password reset) are not sent in development; open
+  http://localhost:3000/dev/outbox to follow their links.
+- To make an account a platform admin: `pnpm admin:grant <email>`. The admin enrolls two-factor
+  authentication at `/admin/mfa` on first visit.
+- Worker health: `GET http://localhost:8081/health` (`WORKER_HEALTH_PORT`).
 
 ## Checks
 
 ```sh
 pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
+
+Database tests run against `DATABASE_URL` (migrated) and are skipped without it. They isolate
+themselves with unique accounts rather than truncating tables.
 
 ## Layout
 

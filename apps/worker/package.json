@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@gp/core": "workspace:*",
+    "@gp/db": "workspace:*",
     "pg-boss": "12.35.0",
     "tsx": "4.23.15"
   }

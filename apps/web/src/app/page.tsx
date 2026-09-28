@@ -1,8 +1,8 @@
-export default function HomePage() {
-  return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
-      <h1>منصة إدارة تجربة الضيوف</h1>
-      <p>قيد الإنشاء.</p>
-    </main>
-  );
+import { redirect } from 'next/navigation';
+import { getPrincipal } from '@/lib/session';
+
+export const dynamic = 'force-dynamic';
+
+export default async function HomePage() {
+  redirect((await getPrincipal()) ? '/dashboard' : '/login');
 }

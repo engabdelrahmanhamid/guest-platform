@@ -26,8 +26,8 @@ A change to any of them needs the product owner's approval.
   - Cancellation stops RSVP, check-in and passes through event-state checks, rewrites no history,
     and keeps `cancelled_at` after archiving.
 - Lifecycle timing (check-in open/close offsets, assumed duration, reopen window, auto-archive
-  delay) comes from per-event columns pre-filled from admin-editable `platform_settings`.
-  Nothing is hard-coded.
+  delay) comes from per-event columns pre-filled from admin-editable `platform_settings`
+  (`lifecycle.*`, `auto_archive.days`, `retention.guest_pii_days`). Nothing is hard-coded.
 - Staff are `event_memberships` rows (no user account). Access is a one-time link, redeemed by
   an explicit tap, bound to one device. `is_supervisor` allows walk-ins, confirming unanswered
   guests at the door, attendance corrections (reason required) and revoking/resending staff

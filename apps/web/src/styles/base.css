@@ -223,3 +223,7 @@ p {
   justify-items: center;
   text-align: center;
 }
+
+.block {
+  display: block;
+}

@@ -445,8 +445,8 @@
       "settings": "الإعدادات"
     },
     "disabledTitle": "المناسبة موقوفة.",
-    "cancelledTitle": "المناسبة ملغاة.",
-    "cancelledBody": "السبب: {reason}. تبقى بياناتها محفوظة للاطلاع."
+    "cancelledTitle": "أُلغيت المناسبة، وبياناتها محفوظة للاطلاع.",
+    "cancelledBody": "السبب: {reason}"
   },
   "readiness": {
     "title": "جاهزية المناسبة",

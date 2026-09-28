@@ -1182,3 +1182,9 @@
   background: var(--danger-soft);
   color: var(--danger);
 }
+
+/* An odd last fact spans the row instead of leaving an empty cell. */
+.fact:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+  border-inline-start: 0;
+}

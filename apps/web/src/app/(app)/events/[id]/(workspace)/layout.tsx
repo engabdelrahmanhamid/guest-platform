@@ -144,8 +144,12 @@ export default async function EventWorkspaceLayout({
         <p className="alert alert-neutral">
           <Icon name="ban" />
           <span className="grow">
-            <strong>{t('workspace.cancelledTitle')}</strong>{' '}
-            {t('workspace.cancelledBody', { reason: e.cancellationReason ?? '' })}
+            <strong>{t('workspace.cancelledTitle')}</strong>
+            {e.cancellationReason && (
+              <span className="block">
+                {t('workspace.cancelledBody', { reason: e.cancellationReason })}
+              </span>
+            )}
           </span>
         </p>
       )}

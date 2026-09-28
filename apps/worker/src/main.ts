@@ -1,10 +1,11 @@
 import { createServer } from 'node:http';
-import { createLogger, loadConfig, runLifecycleTick } from '@gp/core';
+import { createLogger, loadConfig, purgeImportRows, runLifecycleTick } from '@gp/core';
 import { createDatabase, createPool, pingDatabase } from '@gp/db';
 import { PgBoss } from 'pg-boss';
 
-// Background worker. Jobs still to come (import parsing, outbox dispatcher, retention) are
-// registered here as their modules land.
+// Background worker. Jobs still to come (outbox dispatcher, guest data retention) are
+// registered here as their modules land. Spreadsheet imports are parsed during the upload
+// request (see docs/architecture.md, phase 2 notes), so there is no import job.
 const config = loadConfig();
 const log = createLogger({ level: config.LOG_LEVEL, name: 'worker' });
 const pool = createPool(config.DATABASE_URL, 5);
@@ -15,6 +16,7 @@ boss.on('error', (err) => log.error({ err }, 'job queue error'));
 
 const HEARTBEAT = 'system.heartbeat';
 const LIFECYCLE_TICK = 'events.lifecycle-tick';
+const PURGE_IMPORT_ROWS = 'guests.purge-import-rows';
 
 await boss.start();
 await boss.createQueue(HEARTBEAT);
@@ -32,6 +34,14 @@ await boss.work(LIFECYCLE_TICK, async () => {
   if (result.started || result.completed || result.archived) log.info(result, 'lifecycle tick');
 });
 await boss.schedule(LIFECYCLE_TICK, '* * * * *');
+
+// Staged spreadsheet rows hold guest data; they are deleted 30 days after an import ends.
+await boss.createQueue(PURGE_IMPORT_ROWS);
+await boss.work(PURGE_IMPORT_ROWS, async () => {
+  const purged = await purgeImportRows(db, new Date());
+  if (purged) log.info({ purged }, 'purged staged import rows');
+});
+await boss.schedule(PURGE_IMPORT_ROWS, '17 3 * * *');
 
 // Health endpoint for the container orchestrator: up only while the database answers.
 const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 8081);

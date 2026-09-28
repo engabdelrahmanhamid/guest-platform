@@ -31,17 +31,22 @@ export function ActionForm({
   action,
   children,
   className,
+  quiet,
+  id,
 }: {
   action: Action;
   children: ReactNode;
   className?: string;
+  /** Error codes the form's own children present (e.g. a duplicate warning). */
+  quiet?: string[];
+  id?: string;
 }) {
   const t = useTranslations();
   const [state, formAction] = useActionState(action, {});
   return (
-    <form action={formAction} className={className ?? 'form'} noValidate>
+    <form action={formAction} className={className ?? 'form'} noValidate id={id}>
       <StateContext value={state}>
-        {state.error && (
+        {state.error && !quiet?.includes(state.error) && (
           <p role="alert" className="alert alert-error">
             <Icon name="alert" />
             <span className="grow">
@@ -59,6 +64,11 @@ export function ActionForm({
       </StateContext>
     </form>
   );
+}
+
+/** The last result of the surrounding ActionForm, for children that react to it. */
+export function useActionFormState(): FormState {
+  return useContext(StateContext);
 }
 
 function useFieldError(name: string): string | undefined {

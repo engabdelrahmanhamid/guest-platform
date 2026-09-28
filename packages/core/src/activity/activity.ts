@@ -19,6 +19,21 @@ export const ACTIVITY_TYPES = [
   'event_member.supervisor_enabled',
   'event_member.supervisor_disabled',
   'platform_setting.updated',
+  'guest.created',
+  'guest.updated',
+  'guest.cancelled',
+  'guest.restored',
+  'guest.deleted',
+  'guest.group_changed',
+  'guest.companion_allowance_changed',
+  'guest_group.created',
+  'guest_group.renamed',
+  'guest_group.deleted',
+  'guest_import.created',
+  'guest_import.parsed',
+  'guest_import.committed',
+  'guest_import.failed',
+  'guest_import.discarded',
 ] as const;
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
@@ -35,21 +50,35 @@ export interface ActivityInput {
   actor: Actor;
   eventId?: string;
   workspaceId?: string;
+  guestId?: string;
   data?: Record<string, unknown>;
 }
 
-/** Appends an activity row. Call inside the same transaction as the change it describes. */
-export async function recordActivity(db: DbOrTx, input: ActivityInput): Promise<void> {
+function activityRow(input: ActivityInput) {
   const { actor } = input;
-  await db.insert(activity).values({
+  return {
     type: input.type,
     eventId: input.eventId ?? null,
     workspaceId: input.workspaceId ?? null,
+    guestId: input.guestId ?? null,
     actorType: actor.type,
     actorMembershipId: actor.type === 'member' ? actor.membershipId : null,
     actorUserId: actor.type === 'system' ? null : actor.userId,
     data: input.data ?? {},
-  });
+  };
+}
+
+/** Appends an activity row. Call inside the same transaction as the change it describes. */
+export async function recordActivity(db: DbOrTx, input: ActivityInput): Promise<void> {
+  await db.insert(activity).values(activityRow(input));
+}
+
+/** Appends many rows in one statement (bulk actions, import commit). */
+export async function recordActivities(db: DbOrTx, inputs: ActivityInput[]): Promise<void> {
+  for (let i = 0; i < inputs.length; i += 1000) {
+    const chunk = inputs.slice(i, i + 1000);
+    if (chunk.length) await db.insert(activity).values(chunk.map(activityRow));
+  }
 }
 
 export async function listEventActivity(db: DbOrTx, eventId: string, limit = 100) {

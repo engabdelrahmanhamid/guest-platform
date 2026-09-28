@@ -24,7 +24,23 @@ export type DomainErrorCode =
   | 'membership_not_staff'
   | 'membership_removed'
   | 'cannot_disable_self'
-  | 'unknown_setting';
+  | 'unknown_setting'
+  | 'group_name_taken'
+  | 'too_many_groups'
+  | 'guest_delete_not_allowed'
+  | 'too_many_selected'
+  | 'file_too_large'
+  | 'file_empty'
+  | 'file_unsupported'
+  | 'file_macro'
+  | 'file_legacy_xls'
+  | 'file_unreadable'
+  | 'missing_headers'
+  | 'too_many_rows'
+  | 'import_not_ready'
+  | 'import_decisions_missing'
+  | 'import_changed'
+  | 'invalid_decision';
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode;

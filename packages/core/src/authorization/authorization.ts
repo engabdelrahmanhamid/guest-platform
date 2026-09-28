@@ -17,12 +17,14 @@ export const EVENT_CAPABILITIES = [
   'members.view',
   'members.manage',
   'activity.view',
+  'guests.view',
+  'guests.manage',
 ] as const;
 export type EventCapability = (typeof EVENT_CAPABILITIES)[number];
 
 const ROLE_CAPABILITIES: Record<'owner' | 'staff', ReadonlySet<EventCapability>> = {
   owner: new Set(EVENT_CAPABILITIES),
-  // Staff operate check-in from phase 4; they hold no owner capability.
+  // Staff operate check-in from phase 4; they hold no owner capability (no guest management).
   staff: new Set<EventCapability>(['event.view']),
 };
 

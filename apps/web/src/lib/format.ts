@@ -84,3 +84,18 @@ export function formatDayMonth(date: Date, timeZone: string): string {
     timeZone,
   }).format(date);
 }
+
+/** A compact date for lists: "٢٨ سبتمبر". */
+export function formatShortDate(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', timeZone }).format(date);
+}
+
+export function formatCount(n: number): string {
+  return new Intl.NumberFormat(LOCALE).format(n);
+}
+
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${formatCount(n)} B`;
+  if (n < 1024 * 1024) return `${formatCount(Math.round(n / 1024))} KB`;
+  return `${new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 }).format(n / 1024 / 1024)} MB`;
+}

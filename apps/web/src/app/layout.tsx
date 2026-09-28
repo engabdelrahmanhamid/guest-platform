@@ -7,6 +7,7 @@ import '../styles/base.css';
 import '../styles/components.css';
 import '../styles/shell.css';
 import '../styles/pages.css';
+import '../styles/guests.css';
 
 const font = IBM_Plex_Sans_Arabic({
   subsets: ['arabic', 'latin'],

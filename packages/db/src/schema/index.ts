@@ -5,3 +5,4 @@ export * from './identity';
 export * from './workspaces';
 export * from './events';
 export * from './platform';
+export * from './guests';

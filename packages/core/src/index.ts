@@ -24,3 +24,6 @@ export {
 } from './activity/activity';
 export * from './admin/admin';
 export { runLifecycleTick, type TickResult } from './scheduler/lifecycle-scheduler';
+export * from './guests';
+export { formatPhone, parsePhone, phoneSearchDigits, type PhoneProblem } from './shared/phone';
+export { searchForm } from './shared/text';

@@ -1,7 +1,12 @@
 import {
+  addGuest,
   addStaff,
+  cancelGuest,
+  commitImport,
   type CoreContext,
   createEvent,
+  createGroup,
+  createImportBatch,
   createLogger,
   grantPlatformAdmin,
   isDomainError,
@@ -12,11 +17,13 @@ import {
   type TransitionAction,
   utcToLocal,
   verifyEmail,
+  writeXlsx,
 } from '@gp/core';
 import { createDatabase, createPool } from '@gp/db';
 
 // Review data for local and staging demos: pnpm demo:seed
-// Creates a demo owner with one event in each lifecycle state, and a demo admin. Everything goes
+// Creates a demo owner with one event in each lifecycle state (two of them with guests), and a
+// demo admin. Everything goes
 // through the domain functions (with the clock moved back where an event needs a history), so
 // the activity log and invariants are the same as for real use. Refuses to run in production.
 const log = createLogger({ name: 'seed-demo' });
@@ -61,6 +68,8 @@ async function createAccount(who: { email: string; fullName: string }) {
 
 interface DemoEvent {
   createdAgo: number;
+  /** Guests added by hand (in these groups) and/or imported from a generated spreadsheet. */
+  guests?: { groups: string[]; manual: number; cancelled?: number; imported?: number };
   input: Record<string, unknown>;
   staff?: { displayName: string; phone?: string; isSupervisor?: boolean }[];
   /** Transitions and how long ago each happened. */
@@ -88,6 +97,11 @@ const EVENTS: DemoEvent[] = [
       { displayName: 'ريم القحطاني', phone: '0550000102' },
       { displayName: 'هيا الدوسري' },
     ],
+    guests: {
+      groups: ['عائلة العروس', 'عائلة العريس', 'صديقات العروس', 'زميلات العمل'],
+      manual: 46,
+      cancelled: 3,
+    },
     history: [['activate', 5 * DAY]],
   },
   {
@@ -106,6 +120,7 @@ const EVENTS: DemoEvent[] = [
       { displayName: 'خالد الشهري', phone: '0550000201', isSupervisor: true },
       { displayName: 'فهد المطيري', phone: '0550000202' },
     ],
+    guests: { groups: ['المتحدثون', 'الرعاة'], manual: 8, imported: 180 },
     history: [
       ['activate', 13 * DAY],
       ['start', 2 * HOUR],
@@ -178,6 +193,100 @@ const EVENTS: DemoEvent[] = [
   },
 ];
 
+const FIRST = [
+  'محمد',
+  'عبدالله',
+  'فهد',
+  'سلطان',
+  'خالد',
+  'نورة',
+  'سارة',
+  'ريم',
+  'لمى',
+  'هيفاء',
+  'عبدالعزيز',
+  'منيرة',
+  'بدر',
+  'غادة',
+  'تركي',
+  'أمل',
+  'ماجد',
+  'جود',
+  'يوسف',
+  'دانة',
+  'Sarah',
+  'Omar',
+];
+const FAMILY = [
+  'العتيبي',
+  'القحطاني',
+  'الدوسري',
+  'الشمري',
+  'الحربي',
+  'المطيري',
+  'الزهراني',
+  'الغامدي',
+  'السبيعي',
+  'العنزي',
+  'الشهري',
+  'Al-Harbi',
+];
+const guestName = (i: number) => `${FIRST[i % FIRST.length]} ${FAMILY[(i * 7) % FAMILY.length]}`;
+let phoneSeq = 0;
+const nextPhone = () => `05${String(51_000_000 + phoneSeq++ * 37).padStart(8, '0')}`;
+
+async function seedGuests(
+  ctx: CoreContext,
+  ownerId: string,
+  eventId: string,
+  spec: NonNullable<DemoEvent['guests']>,
+) {
+  const groupIds: string[] = [];
+  for (const name of spec.groups)
+    groupIds.push((await createGroup(ctx, ownerId, eventId, { name })).groupId);
+  const ids: string[] = [];
+  for (let i = 0; i < spec.manual; i++) {
+    const r = await addGuest(ctx, ownerId, eventId, {
+      fullName: guestName(i),
+      phone: i % 9 === 4 ? `+97150${String(1_000_000 + i).slice(-7)}` : nextPhone(),
+      groupId: i % 5 === 4 ? '' : groupIds[i % groupIds.length],
+      allowedCompanions: String(i % 4),
+      notes: i % 11 === 0 ? 'يحتاج مكانًا قريبًا من المدخل' : '',
+    });
+    if (r.status === 'saved') ids.push(r.guestId);
+  }
+  for (const id of ids.slice(0, spec.cancelled ?? 0)) {
+    await cancelGuest(ctx, ownerId, eventId, id, { reason: 'اعتذر عن الحضور' });
+  }
+  if (spec.imported) {
+    const rows = Array.from({ length: spec.imported }, (_, i) => [
+      guestName(i + 100),
+      nextPhone(),
+      '',
+      i % 6 === 0 ? spec.groups[1]! : i % 4 === 0 ? 'الإعلام' : '',
+      '',
+      '',
+    ]);
+    const bytes = writeXlsx(
+      'Guests',
+      [
+        'الاسم',
+        'رقم الجوال',
+        'البريد الإلكتروني',
+        'المجموعة',
+        'عدد المرافقين المسموح',
+        'ملاحظات',
+      ].map((header) => ({ header, width: 20 })),
+      rows,
+    );
+    const { batchId } = await createImportBatch(ctx, ownerId, eventId, {
+      name: 'قائمة الحضور.xlsx',
+      bytes,
+    });
+    await commitImport(ctx, ownerId, eventId, batchId);
+  }
+}
+
 try {
   const ownerId = await createAccount(OWNER);
   const adminId = await createAccount(ADMIN);
@@ -188,6 +297,7 @@ try {
     for (const s of e.staff ?? []) {
       await addStaff(at(-e.createdAgo + HOUR), ownerId, eventId, s);
     }
+    if (e.guests) await seedGuests(at(-e.createdAgo + 2 * HOUR), ownerId, eventId, e.guests);
     for (const [action, ago, reason] of e.history ?? []) {
       await transitionEvent(at(-ago), ownerId, eventId, action, reason ? { reason } : {});
     }

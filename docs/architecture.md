@@ -47,6 +47,30 @@ A change to any of them needs the product owner's approval.
 - **No SMS** anywhere, not even as a fallback. Email is not a guest channel in V1.
 - Personal-data retention duration is TBD. The anonymization job is off until an admin sets it.
 
+## Guest management (phase 2)
+
+Implementation choices made in phase 2. Items marked _awaiting approval_ differ from the proposal
+or fill a gap in it, and stay open until the product owner confirms them.
+
+- A guest belongs to one event; the UUID is the identity. Phones are stored as typed and as
+  E.164 (default region SA) and are not unique: the same number is a warning with "add anyway".
+- Phone is required for manual and imported guests. A missing phone in a spreadsheet makes the
+  row invalid (the proposal said "needs review"). _Awaiting approval._
+- Cancelling keeps the guest (status `cancelled`, optional reason shown to the owner only);
+  restoring returns it to `active`. Hard delete goes only through `canHardDeleteGuest`, which
+  later phases tighten (link shared or opened, messaged, checked in).
+- Guests can be changed while the event is draft, active or live and not disabled.
+- Activity records field names and ids, never names, phones, emails, notes or reasons.
+- Spreadsheet imports (.xlsx/.csv, 5 MB, 5,000 rows, first sheet, cached values only) are read
+  during the upload request, not in the worker, and the file is not stored: only its hash, name
+  and size, plus the staged rows. There is no object storage yet. _Awaiting approval._
+- Rows needing review have no default decision and must be decided before commit, except exact
+  repeats (same phone and name), which start as skip. Invalid rows can only be skipped; fixing
+  them means correcting the file and uploading it again.
+- Commit is one transaction under the event lock; each staged row can create at most one guest,
+  and rows are re-checked against the current list before anything is written. Staged rows are
+  deleted 30 days after an import ends.
+
 ## Phases
 
 0 setup · 1 foundation · 2 guest management · 3 guest experience · 4 check-in ·

@@ -41,10 +41,10 @@ export function groupActions(allowed: TransitionAction[]) {
   };
 }
 
-/** Event workspace areas. Only Overview and Settings work in this release. */
+/** Event workspace areas. Overview, Guests and Settings work in this release. */
 export const WORKSPACE_AREAS = [
   { key: 'overview', path: '', icon: 'grid', ready: true },
-  { key: 'guests', path: '/guests', icon: 'users', ready: false },
+  { key: 'guests', path: '/guests', icon: 'users', ready: true },
   { key: 'invitation', path: '/invitation', icon: 'envelope', ready: false },
   { key: 'messages', path: '/messages', icon: 'chat', ready: false },
   { key: 'checkin', path: '/checkin', icon: 'scan', ready: false },

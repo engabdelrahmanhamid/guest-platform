@@ -25,12 +25,20 @@ import {
   rsvpStatus,
 } from './enums';
 import { eventMemberships, events } from './events';
+import { bytea } from './identity';
 import { guests } from './guests';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
-/** Public tokens: 22 base62 characters (about 131 random bits). */
-const TOKEN_FORMAT = `'^[0-9A-Za-z]{22}$'`;
+/**
+ * Public tokens (22 base62 characters, about 131 random bits) are bearer credentials and are never
+ * stored in plain text: `token_hash` is their SHA-256 (unique, used for lookup) and `token_enc` is
+ * the token encrypted with the app key, bound to the row (see core/shared/tokens.ts).
+ */
+const tokenColumns = () => ({
+  tokenHash: bytea('token_hash').notNull(),
+  tokenEnc: bytea('token_enc').notNull(),
+});
 
 /**
  * The guest's personal link, created with the guest (one per guest in V1). The token is the only
@@ -43,7 +51,7 @@ export const invitations = pgTable(
     id: uuid('id').primaryKey(),
     eventId: uuid('event_id').notNull(),
     guestId: uuid('guest_id').notNull(),
-    token: text('token').notNull(),
+    ...tokenColumns(),
     deliveryStatus: invitationDelivery('delivery_status').notNull().default('not_sent'),
     firstSharedAt: ts('first_shared_at'),
     lastSharedAt: ts('last_shared_at'),
@@ -60,14 +68,14 @@ export const invitations = pgTable(
   },
   (t) => [
     unique('invitations_guest_once').on(t.guestId),
-    unique('invitations_token').on(t.token),
+    unique('invitations_token_hash').on(t.tokenHash),
     foreignKey({
       name: 'invitations_guest_fk',
       columns: [t.eventId, t.guestId],
       foreignColumns: [guests.eventId, guests.id],
     }).onDelete('cascade'),
     index('invitations_event_idx').on(t.eventId),
-    check('invitations_token_format', sql`${t.token} ~ ${sql.raw(TOKEN_FORMAT)}`),
+    check('invitations_token_hash_len', sql`octet_length(${t.tokenHash}) = 32`),
     check('invitations_counts', sql`${t.shareCount} >= 0 AND ${t.openCount} >= 0`),
     check(
       'invitations_share_consistent',
@@ -133,7 +141,7 @@ export const guestPasses = pgTable(
     id: uuid('id').primaryKey(),
     eventId: uuid('event_id').notNull(),
     guestId: uuid('guest_id').notNull(),
-    token: text('token').notNull(),
+    ...tokenColumns(),
     status: passStatus('status').notNull().default('active'),
     issuedAt: ts('issued_at').notNull(),
     revokedAt: ts('revoked_at'),
@@ -141,7 +149,7 @@ export const guestPasses = pgTable(
     replacedByPassId: uuid('replaced_by_pass_id').references((): AnyPgColumn => guestPasses.id),
   },
   (t) => [
-    unique('guest_passes_token').on(t.token),
+    unique('guest_passes_token_hash').on(t.tokenHash),
     foreignKey({
       name: 'guest_passes_guest_fk',
       columns: [t.eventId, t.guestId],
@@ -151,7 +159,7 @@ export const guestPasses = pgTable(
       .on(t.guestId)
       .where(sql`${t.status} = 'active'`),
     index('guest_passes_guest_idx').on(t.guestId, t.issuedAt),
-    check('guest_passes_token_format', sql`${t.token} ~ ${sql.raw(TOKEN_FORMAT)}`),
+    check('guest_passes_token_hash_len', sql`octet_length(${t.tokenHash}) = 32`),
     check(
       'guest_passes_revoked_consistent',
       sql`(${t.status} = 'revoked') = (${t.revokedAt} IS NOT NULL)

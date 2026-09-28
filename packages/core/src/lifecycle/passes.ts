@@ -3,7 +3,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { ActivityInput, Actor } from '../activity/activity';
 import type { DbOrTx } from '../shared/context';
 import { newId } from '../shared/ids';
-import { publicToken } from '../shared/tokens';
+import { openPublicToken, publicToken, sealPublicToken } from '../shared/tokens';
 
 export type PassRow = typeof guestPasses.$inferSelect;
 export type PassRevokeReason = 'declined' | 'guest_cancelled' | 'replaced';
@@ -19,6 +19,11 @@ interface Scope {
   actor: Actor;
   workspaceId: string;
   now: Date;
+}
+
+/** The pass's token, decrypted, for drawing its QR. */
+export function passToken(pass: PassRow, key: Buffer): string {
+  return openPublicToken('pass', pass.id, pass, key);
 }
 
 export async function activePass(db: DbOrTx, guestId: string): Promise<PassRow | null> {
@@ -46,15 +51,16 @@ export async function issuePass(
   tx: DbOrTx,
   guest: GuestRef,
   reason: PassIssueReason,
-  scope: Scope,
+  scope: Scope & { key: Buffer },
 ): Promise<{ pass: PassRow; activity: ActivityInput }> {
+  const id = newId();
   const [pass] = await tx
     .insert(guestPasses)
     .values({
-      id: newId(),
+      id,
       eventId: guest.eventId,
       guestId: guest.id,
-      token: publicToken(),
+      ...sealPublicToken('pass', id, publicToken(), scope.key),
       status: 'active',
       issuedAt: scope.now,
     })
@@ -136,7 +142,7 @@ export async function revokeActivePasses(
 export async function replaceActivePass(
   tx: DbOrTx,
   guest: GuestRef,
-  scope: Scope,
+  scope: Scope & { key: Buffer },
 ): Promise<{ pass: PassRow; activities: ActivityInput[] } | null> {
   const current = await activePass(tx, guest.id);
   if (!current) return null;

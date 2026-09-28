@@ -40,7 +40,7 @@ export default async function InvitationPreviewPage({
     if (isDomainError(err, 'not_found') || isDomainError(err, 'forbidden')) notFound();
     throw err;
   }
-  const qrSvg = view.pass?.display === 'valid' ? await passQrSvg(view.pass.token) : null;
+  const qrSvg = view.pass?.token ? await passQrSvg(view.pass.token) : null;
   const embed = sp.embed === '1';
   const link = (state: SampleState) =>
     `/events/${id}/preview?as=${state}${embed ? '&embed=1' : ''}`;

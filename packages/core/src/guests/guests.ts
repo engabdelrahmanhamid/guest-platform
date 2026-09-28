@@ -127,6 +127,7 @@ export async function addGuest(
       actor,
       workspaceId: event.workspaceId,
       now,
+      key: ctx.encryptionKey,
     });
     await recordActivities(tx, [
       {
@@ -299,6 +300,7 @@ export async function restoreGuest(
         actor,
         workspaceId: event.workspaceId,
         now,
+        key: ctx.encryptionKey,
       });
       entries.push(issued.activity);
     }

@@ -2,7 +2,7 @@ import { invitations, rsvps } from '@gp/db/schema';
 import type { ActivityInput, Actor } from '../activity/activity';
 import type { DbOrTx } from '../shared/context';
 import { newId } from '../shared/ids';
-import { publicToken } from '../shared/tokens';
+import { publicToken, sealPublicToken } from '../shared/tokens';
 
 /**
  * Every guest gets a personal invitation link and a pending answer when they are created, in the
@@ -12,21 +12,24 @@ import { publicToken } from '../shared/tokens';
 export async function createGuestLifecycle(
   tx: DbOrTx,
   guestsCreated: { id: string; eventId: string }[],
-  scope: { actor: Actor; workspaceId: string; now: Date },
+  scope: { actor: Actor; workspaceId: string; now: Date; key: Buffer },
 ): Promise<ActivityInput[]> {
   const entries: ActivityInput[] = [];
   for (let i = 0; i < guestsCreated.length; i += 1000) {
     const chunk = guestsCreated.slice(i, i + 1000);
     if (!chunk.length) continue;
     await tx.insert(invitations).values(
-      chunk.map((g) => ({
-        id: newId(),
-        eventId: g.eventId,
-        guestId: g.id,
-        token: publicToken(),
-        createdAt: scope.now,
-        updatedAt: scope.now,
-      })),
+      chunk.map((g) => {
+        const id = newId();
+        return {
+          id,
+          eventId: g.eventId,
+          guestId: g.id,
+          ...sealPublicToken('invitation', id, publicToken(), scope.key),
+          createdAt: scope.now,
+          updatedAt: scope.now,
+        };
+      }),
     );
     await tx.insert(rsvps).values(
       chunk.map((g) => ({

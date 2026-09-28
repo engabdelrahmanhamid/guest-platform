@@ -6,7 +6,13 @@ import { isEditable } from '../events/lifecycle';
 import { writeXlsx } from '../guests/spreadsheet';
 import type { CoreContext, DbOrTx } from '../shared/context';
 import { DomainError } from '../shared/errors';
-import { isPublicToken, publicToken } from '../shared/tokens';
+import {
+  isPublicToken,
+  openPublicToken,
+  publicToken,
+  publicTokenHash,
+  sealPublicToken,
+} from '../shared/tokens';
 import { designFor, type InvitationDesign } from './design';
 import { activePass, type PassRow } from './passes';
 import { markOpened } from './rsvp';
@@ -21,6 +27,14 @@ import {
 
 type EventRow = typeof events.$inferSelect;
 export type InvitationRow = typeof invitations.$inferSelect;
+
+/** The invitation's token, decrypted, for building its link. */
+export function invitationToken(
+  inv: { id: string; tokenHash: Buffer; tokenEnc: Buffer },
+  key: Buffer,
+): string {
+  return openPublicToken('invitation', inv.id, inv, key);
+}
 
 /** The public link for a token. Only the token identifies the guest. */
 export function invitationUrl(appBaseUrl: string, token: string): string {
@@ -54,7 +68,8 @@ export interface GuestPageView {
   /** Present only when the page is `open` or `closed`; never for an unavailable link. */
   guest: { fullName: string; allowedCompanions: number } | null;
   rsvp: { status: 'pending' | 'confirmed' | 'declined'; companionCount: number } | null;
-  pass: { token: string; issuedAt: Date; display: PassDisplay } | null;
+  /** `token` is filled only while the pass is valid (it is only needed to draw the QR). */
+  pass: { token: string | null; issuedAt: Date; display: PassDisplay } | null;
 }
 
 /**
@@ -70,18 +85,19 @@ export async function getGuestPage(ctx: CoreContext, token: string): Promise<Gue
     .innerJoin(events, eq(events.id, invitations.eventId))
     .innerJoin(guests, eq(guests.id, invitations.guestId))
     .innerJoin(rsvps, eq(rsvps.guestId, invitations.guestId))
-    .where(eq(invitations.token, token));
+    .where(eq(invitations.tokenHash, publicTokenHash(token)));
   if (!row || row.guest.anonymizedAt) return null;
   const { event, guest, rsvp } = row;
-  return buildGuestPage(ctx.db, event, guest, rsvp);
+  return buildGuestPage(ctx.db, ctx.encryptionKey, event, guest, rsvp);
 }
 
 async function buildGuestPage(
   db: DbOrTx,
+  key: Buffer,
   event: EventRow,
   guest: typeof guests.$inferSelect | null,
   rsvp: typeof rsvps.$inferSelect | null,
-  sample?: { pass: PassRow | null },
+  sample?: { pass: (PassRow & { sampleToken: string }) | null },
 ): Promise<GuestPageView> {
   const state = guest
     ? invitationPageState(event, guest)
@@ -120,13 +136,19 @@ async function buildGuestPage(
     // A cancelled event never shows a QR.
     pass:
       pass && state !== 'cancelled'
-        ? {
-            token: pass.token,
-            issuedAt: pass.issuedAt,
-            display: passDisplay(pass, guest, rsvp, event),
-          }
+        ? showPass(pass, passDisplay(pass, guest, rsvp, event), key)
         : null,
   };
+}
+
+function showPass(
+  pass: PassRow & { sampleToken?: string },
+  display: PassDisplay,
+  key: Buffer,
+): NonNullable<GuestPageView['pass']> {
+  const token =
+    display !== 'valid' ? null : (pass.sampleToken ?? openPublicToken('pass', pass.id, pass, key));
+  return { token, issuedAt: pass.issuedAt, display };
 }
 
 /**
@@ -152,7 +174,7 @@ export async function getInvitationPreview(
         and(eq(guests.eventId, eventId), eq(guests.id, opts.guestId), isNull(guests.anonymizedAt)),
       );
     if (row) {
-      const view = await buildGuestPage(ctx.db, shown, row.guest, row.rsvp);
+      const view = await buildGuestPage(ctx.db, ctx.encryptionKey, shown, row.guest, row.rsvp);
       return { ...view, sample: false };
     }
   }
@@ -172,12 +194,15 @@ export async function getInvitationPreview(
   const samplePass =
     status === 'confirmed'
       ? ({
-          token: 'PREVIEW0000000000000000'.slice(0, 22),
+          id: sampleGuest.id,
+          sampleToken: 'PREVIEW0000000000000000'.slice(0, 22),
           status: 'active',
           issuedAt: now,
-        } as PassRow)
+        } as PassRow & { sampleToken: string })
       : null;
-  const view = await buildGuestPage(ctx.db, shown, sampleGuest, sampleRsvp, { pass: samplePass });
+  const view = await buildGuestPage(ctx.db, ctx.encryptionKey, shown, sampleGuest, sampleRsvp, {
+    pass: samplePass,
+  });
   return { ...view, sample: true };
 }
 
@@ -192,7 +217,7 @@ export async function recordInvitationOpen(ctx: CoreContext, token: string): Pro
       .select({ inv: invitations, event: events })
       .from(invitations)
       .innerJoin(events, eq(events.id, invitations.eventId))
-      .where(eq(invitations.token, token));
+      .where(eq(invitations.tokenHash, publicTokenHash(token)));
     if (!row) return false;
     if (row.event.status === 'draft' || row.event.disabledAt) return false;
     await markOpened(tx, row.inv, row.event, ctx.now());
@@ -235,7 +260,11 @@ export async function rotateInvitationLink(
     const now = ctx.now();
     await tx
       .update(invitations)
-      .set({ token, tokenRotatedAt: now, updatedAt: now })
+      .set({
+        ...sealPublicToken('invitation', inv.id, token, ctx.encryptionKey),
+        tokenRotatedAt: now,
+        updatedAt: now,
+      })
       .where(eq(invitations.id, inv.id));
     await recordActivity(tx, {
       type: 'invitation.token_rotated',
@@ -329,7 +358,9 @@ async function shareContentFor(
       guestName: guests.fullName,
       phoneE164: guests.phoneE164,
       groupName: guestGroups.name,
-      token: invitations.token,
+      invitationId: invitations.id,
+      tokenHash: invitations.tokenHash,
+      tokenEnc: invitations.tokenEnc,
       shareCount: invitations.shareCount,
       lastSharedAt: invitations.lastSharedAt,
       openedAt: invitations.openedAt,
@@ -343,7 +374,10 @@ async function shareContentFor(
     .orderBy(asc(guests.createdAt), asc(guests.id))
     .limit(1);
   if (!row) return null;
-  const link = invitationUrl(ctx.appBaseUrl, row.token);
+  const link = invitationUrl(
+    ctx.appBaseUrl,
+    invitationToken({ id: row.invitationId, ...row }, ctx.encryptionKey),
+  );
   const text = renderShareText(body, {
     guestName: row.guestName,
     eventName: event.name,
@@ -529,7 +563,9 @@ export async function exportInvitationLinks(
     .select({
       name: guests.fullName,
       phone: guests.phoneE164,
-      token: invitations.token,
+      invitationId: invitations.id,
+      tokenHash: invitations.tokenHash,
+      tokenEnc: invitations.tokenEnc,
       group: guestGroups.name,
     })
     .from(guests)
@@ -548,7 +584,15 @@ export async function exportInvitationLinks(
       { header: link, width: 48, text: true },
       { header: group, width: 18 },
     ],
-    rows.map((r) => [r.name, r.phone ?? '', invitationUrl(ctx.appBaseUrl, r.token), r.group ?? '']),
+    rows.map((r) => [
+      r.name,
+      r.phone ?? '',
+      invitationUrl(
+        ctx.appBaseUrl,
+        invitationToken({ id: r.invitationId, ...r }, ctx.encryptionKey),
+      ),
+      r.group ?? '',
+    ]),
   );
   await recordActivity(ctx.db, {
     type: 'invitation.links_exported',

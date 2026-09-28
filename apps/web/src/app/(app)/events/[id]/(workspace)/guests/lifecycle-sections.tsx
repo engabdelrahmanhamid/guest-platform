@@ -41,7 +41,7 @@ export async function LifecycleSections({
   const share = life.canShare ? await getShareContent(ctx, userId, eventId, guestId) : null;
   const { invitation: inv, rsvp, pass } = life;
   const current = pass.current;
-  const qr = current?.display === 'valid' ? await passQrSvg(current.token) : null;
+  const qr = current?.token ? await passQrSvg(current.token) : null;
   const shareState = inv.openedAt ? 'opened' : inv.shareCount > 0 ? 'shared' : 'not_shared';
   const when = (d: Date | null) => (d ? formatShortDateTime(d, tz) : '—');
 

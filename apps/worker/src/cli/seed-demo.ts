@@ -13,6 +13,7 @@ import {
   loadConfig,
   LocalDiskStorage,
   MemoryMailer,
+  invitationToken,
   recordInvitationOpen,
   recordInvitationShare,
   respondToInvitation,
@@ -330,12 +331,13 @@ async function seedResponses(
   eventId: string,
   spec: NonNullable<DemoEvent['responses']>,
 ) {
-  const rows = await ctx.db
-    .select({ id: guests.id, token: invitations.token, allowed: guests.allowedCompanions })
+  const found = await ctx.db
+    .select({ id: guests.id, inv: invitations, allowed: guests.allowedCompanions })
     .from(guests)
     .innerJoin(invitations, eq(invitations.guestId, guests.id))
     .where(and(eq(guests.eventId, eventId), eq(guests.status, 'active')))
     .orderBy(asc(guests.createdAt), asc(guests.id));
+  const rows = found.map((r) => ({ ...r, token: invitationToken(r.inv, ctx.encryptionKey) }));
   for (const [i, g] of rows.entries()) {
     if (i < spec.shared) await recordInvitationShare(ctx, ownerId, eventId, g.id, 'whatsapp');
     if (i >= spec.opened) continue;

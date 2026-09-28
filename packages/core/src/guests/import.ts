@@ -914,7 +914,7 @@ export async function commitImport(
     const lifecycle = await createGuestLifecycle(
       tx,
       newGuests.map((g) => ({ id: g.id, eventId })),
-      { actor, workspaceId: event.workspaceId, now: ctx.now() },
+      { actor, workspaceId: event.workspaceId, now: ctx.now(), key: ctx.encryptionKey },
     );
     for (const [i, g] of newGuests.entries()) {
       entries.push({

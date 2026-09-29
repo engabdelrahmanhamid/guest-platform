@@ -188,3 +188,43 @@ Official WhatsApp integration comes after provider selection.
 
 Acceptance targets: in phase 4, 6 scanners admit 500 guests in 30 minutes. In phase 8, a real
 event runs end to end with no paper guest list and no WhatsApp API.
+
+## Pilot readiness (phase 5)
+
+Decisions approved with phase 4, and what phase 5 changed. Nothing here adds a feature.
+
+- Staff device sessions: usability is derived from event state (active or live, not disabled,
+  member not removed). A device that is only paused because the event completed becomes usable
+  again on a legitimate reopen. A session ended on purpose (Stop access, staff removal, link
+  re-send, admin disabling the event, sign out) never becomes valid again: the database refuses to
+  change `ended_at` or `end_reason` once set, and revoked links likewise (migration 0007). An admin
+  disabling an event ends its device sessions with reason `security`; re-enabling the event does
+  not bring them back. A device session also stops seven days after sign-in, matching its cookie.
+- Offline check-in stays out of scope. Safe retry with the same idempotency key is the model.
+  Venue connectivity is a checklist item (`pilot-readiness.md`).
+- Corrections: owner and supervisors while live; owner only after completion and inside the reopen
+  window; always a new ledger row with a required reason.
+- RSVP lock after arrival is unchanged.
+- Metrics: people inside, invited parties and ledger rows are different numbers and are labelled
+  as such. A +3 admission is three people, one party and one ledger row.
+- A supervisor manages plain staff only: they can't send or stop access for themselves or another
+  supervisor (a link can be redeemed by whoever holds it, so that would let them act as that
+  person). The owner manages everyone.
+- Door search by staff matches a phone only by its last four digits (already shown masked) or as a
+  whole number, and is rate-limited per device, so a device can't rebuild a full number one digit at
+  a time.
+- Client addresses for rate limits come from the trusted proxy hop (`TRUSTED_PROXY_HOPS`), not from
+  a header the client can set.
+- Password reset: only the newest reset link works; the email is sent in the background so
+  response time doesn't reveal which addresses have accounts; sign-in and reset limit counters hold a
+  hash of the address, not the address.
+- Messaging: `MessagingService` → `MessagingProvider` port with `MockMessagingProvider`, in
+  `packages/core/src/messaging`. The only channel type is `whatsapp`; there is no SMS or email
+  channel to select. Owners still share invitations manually (wa.me and copy link). A future
+  WhatsApp API adapter would implement the same port outside `packages/core`.
+- Account email: `AccountMailer` has an SMTP adapter (TLS required); production requires it.
+- Known and accepted for the pilot: creating an account with a registered email says the email is
+  taken; `/verify-email` verifies on opening the link (a mail scanner can spend the token, and the
+  person asks for another); admin two-factor enrolment is open to a signed-in admin before first
+  enrolment (enrol immediately after granting the role); repeated failed sign-ins can lock an
+  address for 15 minutes. None exposes guest data.

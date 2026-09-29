@@ -624,6 +624,16 @@ describe.skipIf(!databaseUrl)('check-in', () => {
       expect(JSON.stringify(r)).not.toContain('559876543');
     });
 
+    it('limits how fast one device can search', async () => {
+      const { eventId, staff } = await setup();
+      const k = await staff();
+      for (let i = 0; i < 90; i++) await searchDoor(ctx, k.caller, eventId, 'x');
+      await expect(searchDoor(ctx, k.caller, eventId, 'x')).rejects.toEqual(code('rate_limited'));
+      // Another device is unaffected.
+      const other = await staff();
+      await expect(searchDoor(ctx, other.caller, eventId, 'x')).resolves.toEqual([]);
+    });
+
     it('lets a supervisor confirm an unanswered guest at the door', async () => {
       const { eventId, guest, staff } = await setup();
       const g = await guest(null);

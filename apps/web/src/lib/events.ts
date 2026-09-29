@@ -47,7 +47,7 @@ export const WORKSPACE_AREAS = [
   { key: 'guests', path: '/guests', icon: 'users', ready: true },
   { key: 'invitation', path: '/invitation', icon: 'envelope', ready: true },
   { key: 'messages', path: '/messages', icon: 'chat', ready: true },
-  { key: 'checkin', path: '/checkin', icon: 'scan', ready: false },
+  { key: 'checkin', path: '/checkin', icon: 'scan', ready: true },
   { key: 'reports', path: '/reports', icon: 'chart', ready: false },
   { key: 'settings', path: '/settings', icon: 'settings', ready: true },
 ] as const satisfies readonly { key: string; path: string; icon: IconName; ready: boolean }[];

@@ -1,4 +1,13 @@
-import { activity, eventMemberships, guestGroups, guests, invitations, rsvps } from '@gp/db/schema';
+import {
+  activity,
+  attendance,
+  checkInLogs,
+  eventMemberships,
+  guestGroups,
+  guests,
+  invitations,
+  rsvps,
+} from '@gp/db/schema';
 import { and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { type ActivityInput, recordActivities, recordActivity } from '../activity/activity';
 import type { EventAccess } from '../authorization/authorization';
@@ -10,6 +19,7 @@ import { escapeLike, searchForm } from '../shared/text';
 import { parseInput } from '../shared/validation';
 import { issuePass, revokeActivePass, revokeActivePasses } from '../lifecycle/passes';
 import { createGuestLifecycle } from '../lifecycle/records';
+import { checkedInCount } from '../checkin/count';
 import { requireGuestManagement, requireGuestView } from './access';
 import {
   cancelInputSchema,
@@ -246,6 +256,7 @@ export async function cancelGuest(
     const { event, actor } = await requireGuestManagement(tx, userId, eventId, { forUpdate: true });
     const g = await lockGuest(tx, eventId, guestId);
     if (g.status === 'cancelled') return { changed: false };
+    if ((await checkedInCount(tx, guestId)) > 0) throw new DomainError('guest_checked_in');
     const now = ctx.now();
     await tx
       .update(guests)
@@ -315,7 +326,8 @@ export type HardDeleteBlock =
 /**
  * The one place that decides whether a guest may be removed outright rather than cancelled.
  * Once the invitation has left the platform (shared or opened) or the guest has answered, the
- * guest can only be cancelled, so their history stays. Phase 4 adds "checked in".
+ * guest can only be cancelled, so their history stays. A guest with check-in history is never
+ * deleted either.
  */
 export async function canHardDeleteGuest(
   db: DbOrTx,
@@ -331,6 +343,12 @@ export async function canHardDeleteGuest(
     .leftJoin(invitations, eq(invitations.guestId, guests.id))
     .leftJoin(rsvps, eq(rsvps.guestId, guests.id))
     .where(eq(guests.id, guest.id));
+  const [ledger] = await db
+    .select({ id: checkInLogs.id })
+    .from(checkInLogs)
+    .where(eq(checkInLogs.guestId, guest.id))
+    .limit(1);
+  if (ledger) return { allowed: false, reason: 'checked_in' };
   if (row?.openedAt) return { allowed: false, reason: 'invitation_opened' };
   if ((row?.shareCount ?? 0) > 0) return { allowed: false, reason: 'invitation_shared' };
   if (row?.rsvp && row.rsvp !== 'pending') return { allowed: false, reason: 'responded' };
@@ -397,6 +415,13 @@ function listFilters(eventId: string, query: GuestListQuery): SQL | undefined {
   if (query.invite === 'shared')
     where.push(gt(invitations.shareCount, 0), isNull(invitations.openedAt));
   if (query.invite === 'opened') where.push(sql`${invitations.openedAt} IS NOT NULL`);
+  const inside = sql`coalesce(${attendance.checkedInCount}, 0)`;
+  if (query.attendance === 'not_arrived')
+    where.push(eq(guests.status, 'active'), eq(rsvps.status, 'confirmed'), sql`${inside} = 0`);
+  if (query.attendance === 'partial')
+    where.push(sql`${inside} BETWEEN 1 AND ${rsvps.companionCount}`);
+  if (query.attendance === 'complete')
+    where.push(sql`${inside} > 0 AND ${inside} >= 1 + ${rsvps.companionCount}`);
 
   const q = query.q.trim();
   if (q) {
@@ -425,6 +450,7 @@ export interface GuestListItem {
   companionCount: number;
   shareCount: number;
   openedAt: Date | null;
+  checkedIn: number;
 }
 
 /** One page of the guest list with filters, search and sorting applied on the database. */
@@ -448,6 +474,7 @@ export async function listGuests(
     .from(guests)
     .innerJoin(rsvps, eq(rsvps.guestId, guests.id))
     .innerJoin(invitations, eq(invitations.guestId, guests.id))
+    .leftJoin(attendance, eq(attendance.guestId, guests.id))
     .where(where)) as [{ total: number }];
   const pages = Math.max(1, Math.ceil(total / query.pageSize));
   const page = Math.min(query.page, pages);
@@ -472,10 +499,12 @@ export async function listGuests(
       companionCount: rsvps.companionCount,
       shareCount: invitations.shareCount,
       openedAt: invitations.openedAt,
+      checkedIn: sql<number>`coalesce(${attendance.checkedInCount}, 0)::int`,
     })
     .from(guests)
     .innerJoin(rsvps, eq(rsvps.guestId, guests.id))
     .innerJoin(invitations, eq(invitations.guestId, guests.id))
+    .leftJoin(attendance, eq(attendance.guestId, guests.id))
     .leftJoin(guestGroups, eq(guestGroups.id, guests.groupId))
     .where(where)
     .orderBy(...order)
@@ -678,7 +707,23 @@ export async function bulkCancel(
 ) {
   const { reason } = parseInput(cancelInputSchema, input);
   return bulk(ctx, userId, eventId, guestIds, async (tx, { event, actor }, selected, now) => {
-    const active = selected.filter((g) => g.status === 'active');
+    // Guests with anyone inside stay as they are (the database refuses it too).
+    const inside = selected.length
+      ? await tx
+          .select({ id: attendance.guestId })
+          .from(attendance)
+          .where(
+            and(
+              inArray(
+                attendance.guestId,
+                selected.map((g) => g.id),
+              ),
+              gt(attendance.checkedInCount, 0),
+            ),
+          )
+      : [];
+    const skip = new Set(inside.map((r) => r.id));
+    const active = selected.filter((g) => g.status === 'active' && !skip.has(g.id));
     if (active.length) {
       await tx
         .update(guests)

@@ -150,6 +150,8 @@ export const guestPasses = pgTable(
   },
   (t) => [
     unique('guest_passes_token_hash').on(t.tokenHash),
+    // Lets a ledger row name a pass together with its guest.
+    unique('guest_passes_guest_id_id').on(t.guestId, t.id),
     foreignKey({
       name: 'guest_passes_guest_fk',
       columns: [t.eventId, t.guestId],

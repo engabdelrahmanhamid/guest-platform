@@ -134,6 +134,52 @@ Implementation choices made in phase 3, approved on 2026-09-28 with the follow-u
   attend declines or is cancelled. Pass history is kept.
 - Hard delete is refused once the invitation was shared or opened or the guest answered.
 
+## Check-in (phase 4)
+
+Implementation choices made in phase 4. Items marked _awaiting approval_ differ from the proposal
+or fill a gap in it, and stay open until the product owner confirms them.
+
+- Staff access: the owner (or a supervisor, from the scanner) sends a one-time link
+  (`/s/<token>`, 128 random bits, stored as SHA-256 only). Opening it only shows who it is for,
+  so link previews can't use it up; tapping Continue redeems it on that device and sets an
+  http-only, same-site strict `gp_staff` cookie holding the device session secret (also stored
+  hashed). A second tap or device sees "already used" with no names. Sending a new link closes
+  the open one and signs that member's devices out; removing a member does the same.
+- Staff session validity is derived on every request, not stored: the session is valid while it
+  is not ended, the member is not removed, and the event is `active` or `live` and not disabled.
+  Completing the event ends every door session at once; reopening restores them. The cookie
+  itself lasts at most 7 days. (The proposal had a stored `expires_at`.) _Awaiting approval._
+- Door capabilities: every door member scans and admits; the owner and supervisors also
+  correct counts, register walk-ins, confirm unanswered guests at the door and resend or stop
+  colleagues' access. Staff see a guest's name, group, masked phone (`•••• 1234`) and party,
+  never the full phone, email or notes; the walk-in duplicate warning is masked the same way.
+- Admitting: the scanner reads `GP1.<token>` (the browser's QR detector where available,
+  otherwise jsQR on camera frames) or finds the guest by name or phone. The card shows expected,
+  inside and remaining; the door admits any number from 1 to the remaining party (partial
+  arrival). A pass of another event reads as an unknown code; a replaced pass is refused with a
+  hint to open the invitation for the current one.
+- Every tap carries a client idempotency key made when the button is pressed. Writes take an
+  advisory lock on the key and replay the earlier result if it was already applied, so a retry
+  after a lost connection never admits twice. The scanner does not admit offline: on a lost
+  connection it keeps the pending tap and offers Retry with the same key. _Awaiting approval._
+- The database enforces the ledger (`check_in_logs`, append-only): the `apply_check_in` trigger
+  checks the event state, the running count and the party size, requires an active pass for QR
+  check-ins, and updates the `attendance` projection, which nothing else may write.
+- Corrections are new ledger rows with a reason (never edits): owner and supervisors while
+  `live`; the owner alone after completion, within the reopen window. The count stays between 0
+  and the expected party. _Awaiting approval._
+- Once anyone from a party is inside: the guest's own answer is locked (the invitation page says
+  so), the owner can't lower the party below the count inside, the guest can't be cancelled or
+  deleted, and a `live` event can't be cancelled.
+- Confirm at the door changes only an unanswered guest to confirmed (within their allowance); a
+  declined answer stays the owner's to change.
+- Walk-ins are guests with source `walk_in`, phone optional, a confirmed answer and their whole
+  party admitted in the same transaction. They are counted apart and never added to expected
+  attendance. A phone already on the list shows the existing guests first.
+- Load test (2026-09-29, one local server): 6 scanner phones admitted 500 confirmed guests
+  (999 people) through the real scanner UI in 58 seconds; admit latency p50 289 ms, p95 335 ms,
+  no errors, one ledger row per admission.
+
 ## Phases
 
 0 setup · 1 foundation · 2 guest management · 3 guest experience · 4 check-in ·

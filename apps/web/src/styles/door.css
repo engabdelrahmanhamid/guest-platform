@@ -1,0 +1,815 @@
+/*
+ * The door: the staff access page and the scanner. Phone-first, one hand, bright rooms and dark
+ * halls; big targets, the live count always visible, and verdicts readable at a glance.
+ */
+
+/* Staff access link and signed-out notices ------------------------------------------------ */
+.door-entry {
+  min-block-size: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem 1rem;
+  background: var(--brand-deep);
+}
+
+.door-entry-card {
+  inline-size: 100%;
+  max-inline-size: 26rem;
+  display: grid;
+  gap: 0.85rem;
+  padding: 1.75rem 1.5rem;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  text-align: center;
+}
+
+.door-entry-glyph {
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  inline-size: 3.25rem;
+  block-size: 3.25rem;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand-primary);
+}
+
+.door-entry-glyph.is-muted {
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.door-entry-glyph svg {
+  inline-size: 1.6rem;
+  block-size: 1.6rem;
+}
+
+.door-entry-kicker {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.door-entry-card h1 {
+  font-size: var(--text-xl);
+}
+
+.door-entry-who {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.door-entry-body {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+/* Scanner shell ---------------------------------------------------------------------------- */
+.door {
+  min-block-size: 100dvh;
+  background: var(--background);
+}
+
+.door-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.75rem) 1rem 0.9rem;
+  background: var(--brand-deep);
+  color: var(--brand-on-deep);
+}
+
+.door-head-row,
+.door-count,
+.door-body {
+  max-inline-size: 34rem;
+  margin-inline: auto;
+}
+
+.door-head-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.door-event {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.door-event h1 {
+  font-size: var(--text-md);
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.door-event p {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--brand-on-deep-muted);
+}
+
+.door-signout {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--brand-on-deep);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.door-signout svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.door-signout:hover {
+  color: #fff;
+  background: rgb(255 255 255 / 0.08);
+}
+
+.door-count {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 0.85rem;
+  row-gap: 0.55rem;
+  margin-block-start: 0.6rem;
+}
+
+.door-count-n {
+  font-size: 2.6rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.door-count-label {
+  display: grid;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--brand-on-deep-muted);
+}
+
+.door-count-label strong {
+  color: var(--brand-on-deep);
+  font-size: var(--text-sm);
+}
+
+.door-meter {
+  grid-column: 1 / -1;
+  block-size: 6px;
+  border-radius: var(--radius-pill);
+  background:
+    linear-gradient(to left, var(--brand-on-deep) var(--fill, 0%), transparent var(--fill, 0%)),
+    rgb(255 255 255 / 0.12);
+}
+
+[dir='ltr'] .door-meter {
+  background:
+    linear-gradient(to right, var(--brand-on-deep) var(--fill, 0%), transparent var(--fill, 0%)),
+    rgb(255 255 255 / 0.12);
+}
+
+.door-body {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 1rem calc(env(safe-area-inset-bottom, 0px) + 6rem);
+}
+
+.door-tabs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: var(--surface-sunken);
+  border-radius: var(--radius);
+}
+
+.door-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-block-size: 2.75rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.door-tabs button[aria-pressed='true'] {
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.door-tabs button {
+  white-space: nowrap;
+  padding-inline: 0.35rem;
+}
+
+.door-tabs svg {
+  flex: none;
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+}
+
+/* Four tabs (a supervisor) on a phone: words only. */
+@media (max-width: 430px) {
+  .door-tabs:has(> :nth-child(4)) svg {
+    display: none;
+  }
+}
+
+.door-alerts {
+  position: fixed;
+  inset-inline: 0;
+  top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
+  z-index: 25;
+  display: flex;
+  justify-content: center;
+  padding-inline: 1rem;
+}
+
+.door-offline {
+  inline-size: 100%;
+  max-inline-size: 32rem;
+  box-shadow: var(--shadow-pop);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
+.door-offline .grow {
+  flex: 1 1 14rem;
+}
+
+.door-offline .block,
+.door-body .block {
+  display: block;
+}
+
+.door-offline .row-tight {
+  display: flex;
+  gap: 0.4rem;
+}
+
+/* Camera ----------------------------------------------------------------------------------- */
+.door-camera {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.door-viewfinder {
+  position: relative;
+  aspect-ratio: 1;
+  max-inline-size: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--brand-deep);
+}
+
+.door-viewfinder video {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.door-viewfinder:not(.is-on) video {
+  visibility: hidden;
+}
+
+.door-frame {
+  position: absolute;
+  inset: 16%;
+  border-radius: 18px;
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.35);
+  outline: 3px solid rgb(255 255 255 / 0.9);
+}
+
+.door-camera-idle {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.9rem;
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--brand-on-deep);
+}
+
+.door-camera-idle > svg {
+  inline-size: 3rem;
+  block-size: 3rem;
+  opacity: 0.6;
+}
+
+.door-camera-idle p {
+  margin: 0;
+  max-inline-size: 20rem;
+  font-size: var(--text-sm);
+}
+
+.door-camera-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.door-camera-foot p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+/* Search ----------------------------------------------------------------------------------- */
+.door-search {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.door-search input,
+.door-walkin input,
+.door-subform input {
+  min-block-size: 3rem;
+  font-size: 1rem;
+}
+
+.door-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.door-results button {
+  inline-size: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.door-results button:hover {
+  border-color: var(--border-strong);
+}
+
+.door-results .grow {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.door-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.door-pill {
+  flex: none;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.door-pill.is-complete {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.door-pill.is-partial {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.door-pill.is-not_arrived {
+  background: var(--brand-soft);
+  color: var(--brand-primary);
+}
+
+.door-empty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+/* Walk-in ---------------------------------------------------------------------------------- */
+.door-walkin {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.door-walkin .field-hint {
+  margin: 0;
+}
+
+.door-dupes {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  border-radius: var(--radius);
+  background: var(--warning-soft);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.door-dupes p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.door-dupes ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.door-dupes li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.door-dupes .grow {
+  display: grid;
+}
+
+/* Guest card (bottom sheet on phones) ------------------------------------------------------ */
+.door-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgb(11 58 49 / 0.45);
+}
+
+.door-sheet {
+  inline-size: 100%;
+  max-inline-size: 34rem;
+  max-block-size: 92dvh;
+  overflow-y: auto;
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.1rem 1.1rem calc(env(safe-area-inset-bottom, 0px) + 1.2rem);
+  background: var(--surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-block-start: 6px solid var(--success);
+  box-shadow: var(--shadow-pop);
+  animation: door-rise 160ms ease-out;
+}
+
+.door-sheet.is-warn {
+  border-block-start-color: var(--warning);
+}
+
+.door-sheet.is-error {
+  border-block-start-color: var(--danger);
+}
+
+@keyframes door-rise {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .door-sheet {
+    animation: none;
+  }
+}
+
+@media (min-width: 640px) {
+  .door-sheet-backdrop {
+    align-items: center;
+    padding: 1.5rem;
+  }
+
+  .door-sheet {
+    border-radius: var(--radius-lg);
+  }
+}
+
+.door-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.door-sheet-head h2 {
+  font-size: var(--text-xl);
+}
+
+.door-party {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.door-party > div {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.6rem 0.4rem;
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  text-align: center;
+}
+
+.door-party dt {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.door-party dd {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.door-party .is-key {
+  background: var(--brand-soft);
+  color: var(--brand-primary);
+}
+
+.door-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+
+.door-verdict svg {
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin-block-start: 0.15rem;
+}
+
+.door-verdict.is-error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.door-verdict.is-warn {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.door-last {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.door-label {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.door-admit {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.door-stepper {
+  display: grid;
+  grid-template-columns: 3.5rem 1fr 3.5rem;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.door-stepper button {
+  block-size: 3.25rem;
+  border: 0;
+  background: var(--surface-muted);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.door-stepper button:disabled {
+  color: var(--text-tertiary);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.door-stepper output {
+  text-align: center;
+  font-size: var(--text-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.door-admit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-block-size: 3.5rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--success);
+  color: #fff;
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.door-admit-btn:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.door-admit-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.door-subform {
+  display: grid;
+  gap: 0.6rem;
+  padding-block-start: 0.9rem;
+  border-block-start: 1px solid var(--border);
+}
+
+.door-subform h3 {
+  font-size: var(--text-base);
+}
+
+.door-subform .door-sub {
+  font-size: var(--text-sm);
+}
+
+.door-fix {
+  justify-self: start;
+}
+
+/* Toast ------------------------------------------------------------------------------------ */
+.door-toast-wrap {
+  position: fixed;
+  inset-inline: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  padding-inline: 1rem;
+  pointer-events: none;
+}
+
+.door-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-inline-size: 32rem;
+  margin: 0;
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius);
+  background: var(--success);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: var(--shadow-pop);
+}
+
+.door-toast svg {
+  flex: none;
+}
+
+.door-toast.is-warn {
+  background: var(--warning);
+}
+
+.door-toast.is-error {
+  background: var(--danger);
+}
+
+/* Supervisor: door team -------------------------------------------------------------------- */
+.door-team {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.door-team .field-hint {
+  margin: 0;
+}
+
+.door-team-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.door-team-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.door-team-list .grow {
+  display: grid;
+  flex: 1 1 10rem;
+}
+
+.door-team-list strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.door-team-link {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius);
+  background: var(--brand-soft);
+  font-size: var(--text-sm);
+}
+
+.door-team-link code {
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+  user-select: all;
+}

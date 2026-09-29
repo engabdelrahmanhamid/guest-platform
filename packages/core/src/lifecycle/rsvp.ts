@@ -2,6 +2,7 @@ import { events, guests, invitations, rsvps } from '@gp/db/schema';
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { type ActivityInput, type Actor, recordActivities } from '../activity/activity';
+import { checkedInCount } from '../checkin/count';
 import { requireEventAccess } from '../authorization/authorization';
 import type { CoreContext, DbOrTx } from '../shared/context';
 import { DomainError } from '../shared/errors';
@@ -49,7 +50,7 @@ export interface RsvpOutcome {
  *   pending/confirmed → declined   companions go to 0 and the active pass is revoked
  * Repeating the current answer changes nothing and records nothing.
  */
-async function applyRsvp(
+export async function applyRsvp(
   tx: DbOrTx,
   target: { event: EventRow; guest: GuestRow; rsvp: RsvpRow },
   input: RsvpInput,
@@ -159,6 +160,9 @@ export async function respondToInvitation(
     if (state !== 'open') {
       throw new DomainError(guest.status !== 'active' ? 'guest_not_active' : 'rsvp_closed');
     }
+    // Once anyone in the party is inside, the guest's own answer is fixed; the owner can still
+    // change it (never below the people already inside).
+    if ((await checkedInCount(tx, guest.id)) > 0) throw new DomainError('rsvp_locked_checked_in');
     const now = ctx.now();
     const outcome = await applyRsvp(
       tx,
@@ -236,6 +240,11 @@ export async function setGuestRsvp(
     if (!rsvpOpen(event)) throw new DomainError('rsvp_closed', undefined, { status: event.status });
     const { guest, rsvp } = await lockGuestAndRsvp(tx, eventId, guestId);
     if (guest.status !== 'active') throw new DomainError('guest_not_active');
+    const inside = await checkedInCount(tx, guest.id);
+    const party = input.status === 'confirmed' ? 1 + input.companions : 0;
+    if (party < inside) {
+      throw new DomainError('party_below_checked_in', undefined, { checkedIn: inside });
+    }
     return applyRsvp(tx, { event, guest, rsvp }, input, actor, ctx.now(), ctx.encryptionKey);
   });
 }

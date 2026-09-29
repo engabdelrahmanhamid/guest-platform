@@ -3,6 +3,7 @@ import { and, asc, eq, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordActivity } from '../activity/activity';
 import { type EventAccess, requireEventAccess } from '../authorization/authorization';
+import { closeStaffAccess } from '../checkin/staff-access';
 import { isEditable } from '../events/lifecycle';
 import type { CoreContext, Tx } from '../shared/context';
 import { DomainError } from '../shared/errors';
@@ -11,8 +12,8 @@ import { normalizePhone } from '../shared/phone';
 import { parseInput } from '../shared/validation';
 
 /**
- * Staff are event memberships with no user account. Their passwordless access link arrives in
- * phase 4; until then a staff membership is `invited`.
+ * Staff are event memberships with no user account. A staff membership is `invited` until its
+ * first access link is redeemed on a device (checkin/staff-access.ts), then `active`.
  */
 export const addStaffSchema = z.object({
   displayName: z
@@ -112,6 +113,8 @@ export async function removeStaff(
         updatedAt: now,
       })
       .where(eq(eventMemberships.id, membershipId));
+    // Their link stops working and their devices are signed out at once.
+    await closeStaffAccess(tx, membershipId, 'member_removed', actor.membershipId, now);
     await recordActivity(tx, {
       type: 'event_member.removed',
       actor,

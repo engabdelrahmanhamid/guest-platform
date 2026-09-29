@@ -27,6 +27,10 @@ const nextConfig: NextConfig = {
     return [
       { source: '/i/:path*', headers: privatePage },
       { source: '/api/v1/public/:path*', headers: privatePage },
+      // Staff access links carry a one-time secret; the scanner shows guests' names.
+      { source: '/s/:path*', headers: privatePage },
+      { source: '/scan/:path*', headers: privatePage },
+      { source: '/scan', headers: privatePage },
     ];
   },
 };

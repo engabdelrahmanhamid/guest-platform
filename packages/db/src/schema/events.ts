@@ -10,6 +10,7 @@ import {
   smallint,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
@@ -160,6 +161,8 @@ export const eventMemberships = pgTable(
       columns: [t.removedByMembershipId],
       foreignColumns: [t.id],
     }),
+    // Lets staff links, sessions and ledger rows point at a membership of their own event.
+    unique('event_memberships_event_id_id').on(t.eventId, t.id),
     uniqueIndex('event_memberships_one_owner')
       .on(t.eventId)
       .where(sql`${t.role} = 'owner' AND ${t.status} <> 'removed'`),

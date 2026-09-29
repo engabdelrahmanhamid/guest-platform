@@ -1,6 +1,7 @@
 'use server';
 
 import {
+  correctAttendance,
   isDomainError,
   recordInvitationShare,
   replaceGuestPass,
@@ -107,4 +108,31 @@ export async function replacePassAction(
   }
   revalidatePath(`/events/${eventId}`, 'layout');
   redirect(back(eventId, data, 'pass_replaced'));
+}
+
+/** The owner corrects a guest's attendance from the drawer: a new ledger row with a reason. */
+export async function correctAttendanceAction(
+  eventId: string,
+  guestId: string,
+  _prev: FormState,
+  data: FormData,
+): Promise<FormState> {
+  const principal = await requirePrincipal();
+  try {
+    await correctAttendance(
+      getCoreContext(),
+      { kind: 'owner', userId: principal.user.id },
+      eventId,
+      {
+        guestId,
+        delta: String(data.get('delta') ?? '').replace(/^\+/, ''),
+        reason: data.get('reason'),
+        idempotencyKey: data.get('idempotencyKey'),
+      },
+    );
+  } catch (err) {
+    return toFormState(err, data);
+  }
+  revalidatePath(`/events/${eventId}`, 'layout');
+  redirect(back(eventId, data, 'attendance_corrected'));
 }

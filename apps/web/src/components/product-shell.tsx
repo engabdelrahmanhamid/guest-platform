@@ -5,6 +5,7 @@ import '../styles/shell.css';
 import '../styles/pages.css';
 import '../styles/guests.css';
 import '../styles/invitations.css';
+import '../styles/checkin.css';
 
 /**
  * Styles and client-side messages for the product UI (owners, admins, sign-in). Guest-facing

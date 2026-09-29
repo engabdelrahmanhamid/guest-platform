@@ -13,6 +13,7 @@ import {
   publicTokenHash,
   sealPublicToken,
 } from '../shared/tokens';
+import { checkedInCount } from '../checkin/count';
 import { designFor, type InvitationDesign } from './design';
 import { activePass, type PassRow } from './passes';
 import { markOpened } from './rsvp';
@@ -68,6 +69,8 @@ export interface GuestPageView {
   /** Present only when the page is `open` or `closed`; never for an unavailable link. */
   guest: { fullName: string; allowedCompanions: number } | null;
   rsvp: { status: 'pending' | 'confirmed' | 'declined'; companionCount: number } | null;
+  /** People of this guest's party checked in; once anyone is inside the answer is fixed. */
+  arrived: number;
   /** `token` is filled only while the pass is valid (it is only needed to draw the QR). */
   pass: { token: string | null; issuedAt: Date; display: PassDisplay } | null;
 }
@@ -120,11 +123,13 @@ async function buildGuestPage(
     status: event.status,
   };
   if (state === 'unavailable' || !guest || !rsvp) {
-    return { state, event: publicEvent, design, guest: null, rsvp: null, pass: null };
+    return { state, event: publicEvent, design, guest: null, rsvp: null, pass: null, arrived: 0 };
   }
   const pass = sample ? sample.pass : await activePass(db, guest.id);
+  const arrived = sample ? 0 : await checkedInCount(db, guest.id);
   return {
     state,
+    arrived,
     event: publicEvent,
     design,
     guest:

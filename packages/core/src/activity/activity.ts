@@ -47,6 +47,13 @@ export const ACTIVITY_TYPES = [
   'pass.issued',
   'pass.revoked',
   'pass.replaced',
+  'attendance.checked_in',
+  'attendance.corrected',
+  'attendance.walk_in',
+  'staff.access_sent',
+  'staff.access_revoked',
+  'staff.device_joined',
+  'staff.signed_out',
 ] as const;
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];

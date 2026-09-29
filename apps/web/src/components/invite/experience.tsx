@@ -190,6 +190,7 @@ export async function GuestExperience({
             saved={saved ?? null}
             error={error ?? null}
             hasPass={Boolean(pass && pass.display === 'valid')}
+            arrived={view.arrived}
             t={t}
           />
         )}
@@ -278,6 +279,7 @@ function Answer({
   saved,
   error,
   hasPass,
+  arrived,
   t,
 }: {
   state: GuestPageView['state'];
@@ -287,9 +289,12 @@ function Answer({
   saved: string | null;
   error: string | null;
   hasPass: boolean;
+  arrived: number;
   t: T;
 }) {
-  const open = state === 'open';
+  // Once anyone of the party is inside, the answer can't change from here.
+  const open = state === 'open' && arrived === 0;
+  const closedNote = arrived > 0 ? t('arrivedNote') : t('closedNote');
   const disabled = respond === null;
   const allowed = guest.allowedCompanions;
   const confirmForm = (initial: number, label: string) => (
@@ -345,7 +350,7 @@ function Answer({
               {declineForm(t('decline'))}
             </div>
           ) : (
-            <p className="inv-muted">{t('closedNote')}</p>
+            <p className="inv-muted">{closedNote}</p>
           )}
         </>
       )}
@@ -375,7 +380,7 @@ function Answer({
               </div>
             </details>
           ) : (
-            <p className="inv-muted">{t('closedNote')}</p>
+            <p className="inv-muted">{closedNote}</p>
           )}
         </>
       )}
@@ -397,7 +402,7 @@ function Answer({
               <div className="inv-choices">{confirmForm(0, t('accept'))}</div>
             </details>
           ) : (
-            <p className="inv-muted">{t('closedNote')}</p>
+            <p className="inv-muted">{closedNote}</p>
           )}
         </>
       )}

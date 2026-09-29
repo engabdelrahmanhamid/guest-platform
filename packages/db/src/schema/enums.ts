@@ -80,3 +80,11 @@ export const invitationTemplate = pgEnum('invitation_template', [
   'celebration',
 ]);
 export const messageType = pgEnum('message_type', ['invitation', 'reminder']);
+export const checkInAction = pgEnum('check_in_action', ['check_in', 'correction', 'walk_in']);
+export const checkInMethod = pgEnum('check_in_method', ['qr', 'search', 'walk_in', 'dashboard']);
+export const staffSessionEndReason = pgEnum('staff_session_end_reason', [
+  'revoked',
+  'resent',
+  'member_removed',
+  'signed_out',
+]);

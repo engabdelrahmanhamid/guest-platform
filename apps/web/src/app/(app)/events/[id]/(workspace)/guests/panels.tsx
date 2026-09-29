@@ -18,6 +18,7 @@ import { formatShortDateTime } from '@/lib/format';
 import { type GuestsParams, guestsHref, UUID } from '@/lib/guests';
 import { getCoreContext } from '@/lib/server';
 import { requirePrincipal } from '@/lib/session';
+import { AttendanceSection } from './attendance-section';
 import { LifecycleSections } from './lifecycle-sections';
 import { addGuestAction, groupAction, guestStatusAction, updateGuestAction } from './actions';
 
@@ -276,6 +277,14 @@ export async function GuestPanels({
         tz={tz}
       />
 
+      <AttendanceSection
+        userId={principal.user.id}
+        eventId={eventId}
+        guestId={guest.id}
+        self={self}
+        tz={tz}
+      />
+
       <section className="drawer-section" aria-labelledby="gd-activity">
         <h3 id="gd-activity">{t('guests.drawer.activity')}</h3>
         <ol className="timeline">
@@ -321,7 +330,9 @@ function activityText(
       const text =
         data.source === 'excel_import'
           ? t('guests.activity.created_excel_import', { row: String(data.row ?? '') })
-          : t('guests.activity.created_manual');
+          : data.source === 'walk_in'
+            ? t('guests.activity.created_walk_in')
+            : t('guests.activity.created_manual');
       return data.duplicateAcknowledged
         ? `${text} · ${t('guests.activity.duplicateAcknowledged')}`
         : text;
@@ -382,6 +393,12 @@ function activityText(
       );
     case 'pass.replaced':
       return t('guests.activity.passReplaced');
+    case 'attendance.checked_in':
+      return t('guests.activity.checkedIn', { count: Number(data.count ?? 0) });
+    case 'attendance.corrected':
+      return t('guests.activity.corrected', { count: String(data.resulting ?? '') });
+    case 'attendance.walk_in':
+      return t('guests.activity.walkIn', { count: Number(data.count ?? 0) });
     default:
       return type;
   }

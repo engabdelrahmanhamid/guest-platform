@@ -32,3 +32,4 @@ export { DISPLAY_LOCALE, formatEventDate, formatEventTime } from './shared/datet
 export { formatPhone, parsePhone, phoneSearchDigits, type PhoneProblem } from './shared/phone';
 export { searchForm } from './shared/text';
 export { purgeRateLimits } from './identity/rate-limit';
+export * from './checkin';

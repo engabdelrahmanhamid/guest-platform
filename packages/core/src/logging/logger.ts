@@ -45,6 +45,13 @@ export const REDACTED_PATHS = [
   '*.link',
   'waUrl',
   '*.waUrl',
+  // Staff access links and device sessions are bearer secrets too.
+  'url',
+  '*.url',
+  'sessionToken',
+  '*.sessionToken',
+  'reason',
+  '*.reason',
   'secretAccessKey',
   '*.secretAccessKey',
   'req.headers.authorization',

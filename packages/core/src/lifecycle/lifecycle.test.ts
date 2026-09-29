@@ -15,7 +15,7 @@ import {
 } from '../guests/guests';
 import { readSpreadsheet } from '../guests/spreadsheet';
 import { newId } from '../shared/ids';
-import { isPublicToken, publicToken } from '../shared/tokens';
+import { isPublicToken, publicToken, sealPublicToken } from '../shared/tokens';
 import { createOwner, createTestContext, databaseUrl, eventInput } from '../testing/harness';
 import {
   exportInvitationLinks,
@@ -23,14 +23,16 @@ import {
   getInvitationPreview,
   getShareContent,
   getShareQueue,
+  invitationToken,
   recordInvitationOpen,
   recordInvitationShare,
   rotateInvitationLink,
 } from './invitations';
 import { getGuestLifecycle, rsvpSummary } from './overview';
+import { passToken } from './passes';
 import { replaceGuestPass, respondToInvitation, setGuestRsvp } from './rsvp';
 import { DEFAULT_SHARE_TEXT, getShareText, renderShareText, saveShareText } from './share-text';
-import { expectedPartySize, passDisplay, qrPayload } from './state';
+import { expectedPartySize, invitationPageState, passDisplay, qrPayload } from './state';
 
 const code = (c: string) => expect.objectContaining({ code: c });
 
@@ -76,11 +78,15 @@ describe.skipIf(!databaseUrl)('invitations, RSVP and passes', () => {
         .select()
         .from(invitations)
         .where(eq(invitations.guestId, r.guestId));
-      return { guestId: r.guestId, token: inv!.token };
+      return { guestId: r.guestId, token: invitationToken(inv!, ctx.encryptionKey) };
     };
     return { userId: owner.userId, eventId, add };
   }
 
+  const sealedPass = () => {
+    const id = newId();
+    return { id, ...sealPublicToken('pass', id, publicToken(), ctx.encryptionKey) };
+  };
   const passesOf = (guestId: string) =>
     ctx.db
       .select()
@@ -181,6 +187,27 @@ describe.skipIf(!databaseUrl)('invitations, RSVP and passes', () => {
       expect((await getGuestPage(ctx, token))?.state).toBe('cancelled');
     });
 
+    it('stores invitation and pass tokens only as a hash and a ciphertext', async () => {
+      const { add } = await setup();
+      const { guestId, token } = await add();
+      const { pass } = await respondToInvitation(ctx, token, {
+        status: 'confirmed',
+        companions: 0,
+      });
+      const qr = passToken(pass!, ctx.encryptionKey);
+      const rows = await ctx.db.execute<{ row: string }>(sql`
+        SELECT row_to_json(i)::text AS row FROM invitations i WHERE i.guest_id = ${guestId}
+        UNION ALL
+        SELECT row_to_json(p)::text FROM guest_passes p WHERE p.guest_id = ${guestId}`);
+      expect(rows.rows).toHaveLength(2);
+      for (const { row } of rows.rows) {
+        expect(row).not.toContain(token);
+        expect(row).not.toContain(qr);
+      }
+      // Both still resolve: the guest page by its link, and the pass by its QR token.
+      expect((await getGuestPage(ctx, token))?.pass?.token).toBe(qr);
+    });
+
     it('rotates: the old link stops working at once, the answer and pass stay', async () => {
       const { userId, eventId, add } = await setup();
       const { guestId, token } = await add();
@@ -194,7 +221,7 @@ describe.skipIf(!databaseUrl)('invitations, RSVP and passes', () => {
       );
       const page = await getGuestPage(ctx, fresh);
       expect(page?.rsvp).toEqual({ status: 'confirmed', companionCount: 1 });
-      expect(page?.pass?.token).toBe(before!.token);
+      expect(page?.pass?.token).toBe(passToken(before!, ctx.encryptionKey));
       expect(await typesOf(guestId)).toContain('invitation.token_rotated:member');
     });
 
@@ -252,12 +279,13 @@ describe.skipIf(!databaseUrl)('invitations, RSVP and passes', () => {
 
       const again = await respondToInvitation(ctx, token, { status: 'confirmed', companions: 1 });
       const passB = again.pass!;
-      expect(passB.token).not.toBe(passA.token);
+      expect(passB.id).not.toBe(passA.id);
+      expect(passToken(passB, ctx.encryptionKey)).not.toBe(passToken(passA, ctx.encryptionKey));
 
       const all = await passesOf(guestId);
-      expect(all.map((p) => [p.token, p.status, p.revokeReason])).toEqual([
-        [passA.token, 'revoked', 'declined'],
-        [passB.token, 'active', null],
+      expect(all.map((p) => [p.id, p.status, p.revokeReason])).toEqual([
+        [passA.id, 'revoked', 'declined'],
+        [passB.id, 'active', null],
       ]);
       expect(await typesOf(guestId)).toEqual([
         'guest.created:member',
@@ -372,7 +400,7 @@ describe.skipIf(!databaseUrl)('invitations, RSVP and passes', () => {
         ['revoked', 'guest_cancelled'],
         ['active', null],
       ]);
-      expect(all[1]!.token).not.toBe(pass!.token);
+      expect(all[1]!.id).not.toBe(pass!.id);
       // The answer survived the cancellation.
       expect((await getGuestPage(ctx, token))?.rsvp).toEqual({
         status: 'confirmed',
@@ -436,6 +464,12 @@ describe.skipIf(!databaseUrl)('invitations, RSVP and passes', () => {
       expect(passDisplay(active, guest, yes, ev('cancelled', new Date()))).toBe('cancelled');
       expect(passDisplay(active, guest, yes, ev('archived', new Date()))).toBe('cancelled');
       expect(passDisplay({ status: 'revoked' }, guest, yes, ev('live'))).toBe('revoked');
+      // Archiving keeps what the guest saw: an ended event stays read-only, a cancelled one
+      // keeps its cancellation notice.
+      expect(invitationPageState(ev('completed'), guest)).toBe('closed');
+      expect(invitationPageState(ev('archived'), guest)).toBe('closed');
+      expect(invitationPageState(ev('cancelled', new Date()), guest)).toBe('cancelled');
+      expect(invitationPageState(ev('archived', new Date()), guest)).toBe('cancelled');
       expect(expectedPartySize(guest, { status: 'confirmed', companionCount: 2 })).toBe(3);
       expect(
         expectedPartySize({ status: 'cancelled' }, { status: 'confirmed', companionCount: 2 }),
@@ -449,10 +483,9 @@ describe.skipIf(!databaseUrl)('invitations, RSVP and passes', () => {
       await respondToInvitation(ctx, token, { status: 'confirmed', companions: 0 });
       await expect(
         ctx.db.insert(guestPasses).values({
-          id: newId(),
+          ...sealedPass(),
           eventId,
           guestId,
-          token: publicToken(),
           status: 'active',
           issuedAt: new Date(),
         }),
@@ -461,10 +494,9 @@ describe.skipIf(!databaseUrl)('invitations, RSVP and passes', () => {
       const other = await add();
       await expect(
         ctx.db.insert(guestPasses).values({
-          id: newId(),
+          ...sealedPass(),
           eventId,
           guestId: other.guestId,
-          token: publicToken(),
           status: 'active',
           issuedAt: new Date(),
         }),

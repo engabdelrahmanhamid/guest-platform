@@ -3,8 +3,8 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { requireEventAccess } from '../authorization/authorization';
 import type { CoreContext, DbOrTx } from '../shared/context';
 import { DomainError } from '../shared/errors';
-import { invitationUrl } from './invitations';
-import { passHistory } from './passes';
+import { invitationToken, invitationUrl } from './invitations';
+import { passHistory, passToken, type PassRow } from './passes';
 import { passDisplay, type PassDisplay, rsvpOpen, sharingOpen } from './state';
 
 export interface RsvpSummary {
@@ -86,7 +86,8 @@ export interface GuestLifecycleView {
   pass: {
     /** The active pass, or the latest one if none is active. */
     current: {
-      token: string;
+      /** Filled only while the pass is valid, to draw its QR. */
+      token: string | null;
       issuedAt: Date;
       revokedAt: Date | null;
       revokeReason: string | null;
@@ -119,7 +120,7 @@ export async function getGuestLifecycle(
   const current = passes.find((p) => p.status === 'active') ?? passes[0] ?? null;
   return {
     invitation: {
-      link: invitationUrl(ctx.appBaseUrl, inv.token),
+      link: invitationUrl(ctx.appBaseUrl, invitationToken(inv, ctx.encryptionKey)),
       deliveryStatus: inv.deliveryStatus,
       shareCount: inv.shareCount,
       firstSharedAt: inv.firstSharedAt,
@@ -142,18 +143,22 @@ export async function getGuestLifecycle(
     },
     pass: {
       current: current
-        ? {
-            token: current.token,
-            issuedAt: current.issuedAt,
-            revokedAt: current.revokedAt,
-            revokeReason: current.revokeReason,
-            display: passDisplay(current, guest, rsvp, event),
-          }
+        ? currentPass(current, passDisplay(current, guest, rsvp, event), ctx.encryptionKey)
         : null,
       issuedCount: passes.length,
     },
     canChangeRsvp: rsvpOpen(event) && guest.status === 'active',
     canShare: sharingOpen(event) && guest.status === 'active',
+  };
+}
+
+function currentPass(pass: PassRow, display: PassDisplay, key: Buffer) {
+  return {
+    token: display === 'valid' ? passToken(pass, key) : null,
+    issuedAt: pass.issuedAt,
+    revokedAt: pass.revokedAt,
+    revokeReason: pass.revokeReason,
+    display,
   };
 }
 

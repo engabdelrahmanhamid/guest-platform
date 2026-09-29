@@ -1,5 +1,6 @@
 import {
   formatPhone,
+  GUEST_ATTENDANCE_FILTERS,
   GUEST_INVITE_FILTERS,
   GUEST_RSVP_FILTERS,
   GUEST_SORTS,
@@ -79,7 +80,15 @@ export default async function GuestsPage({
 
   const q = sp.q?.trim() ?? '';
   const status = sp.status === 'active' || sp.status === 'cancelled' ? sp.status : 'all';
-  const source = sp.source === 'manual' || sp.source === 'excel_import' ? sp.source : 'all';
+  const source =
+    sp.source === 'manual' || sp.source === 'excel_import' || sp.source === 'walk_in'
+      ? sp.source
+      : 'all';
+  const attendance = (GUEST_ATTENDANCE_FILTERS as readonly string[]).includes(sp.attendance ?? '')
+    ? sp.attendance!
+    : 'all';
+  // Attendance shows once the door has opened (or anyone is inside).
+  const doorOpened = ['live', 'completed', 'archived'].includes(e.status);
   const rsvp = (GUEST_RSVP_FILTERS as readonly string[]).includes(sp.rsvp ?? '') ? sp.rsvp! : 'all';
   const invite = (GUEST_INVITE_FILTERS as readonly string[]).includes(sp.invite ?? '')
     ? sp.invite!
@@ -89,7 +98,7 @@ export default async function GuestsPage({
   const groupName = (gid: string) => groups.find((g) => g.id === gid)?.name ?? '';
   const chips: {
     label: string;
-    key: 'q' | 'status' | 'group' | 'source' | 'rsvp' | 'invite';
+    key: 'q' | 'status' | 'group' | 'source' | 'rsvp' | 'invite' | 'attendance';
   }[] = [
     ...(q ? [{ label: `«${q}»`, key: 'q' as const }] : []),
     ...(status !== 'all' ? [{ label: t(`guests.status.${status}`), key: 'status' as const }] : []),
@@ -104,6 +113,9 @@ export default async function GuestsPage({
     ...(source !== 'all' ? [{ label: t(`guests.source.${source}`), key: 'source' as const }] : []),
     ...(rsvp !== 'all' ? [{ label: t(`guests.rsvp.${rsvp}`), key: 'rsvp' as const }] : []),
     ...(invite !== 'all' ? [{ label: t(`guests.invite.${invite}`), key: 'invite' as const }] : []),
+    ...(attendance !== 'all'
+      ? [{ label: t(`guests.attendance.${attendance}`), key: 'attendance' as const }]
+      : []),
   ];
   const filtered = chips.length > 0;
   const activeFilters = chips.filter((c) => c.key !== 'q').length;
@@ -308,8 +320,22 @@ export default async function GuestsPage({
                       <option value="all">{t('guests.filters.allSources')}</option>
                       <option value="manual">{t('guests.source.manual')}</option>
                       <option value="excel_import">{t('guests.source.excel_import')}</option>
+                      <option value="walk_in">{t('guests.source.walk_in')}</option>
                     </select>
                   </label>
+                  {(doorOpened || attendance !== 'all') && (
+                    <label className="mini-field">
+                      <span>{t('guests.filters.attendance')}</span>
+                      <select name="attendance" defaultValue={attendance}>
+                        <option value="all">{t('guests.filters.allAttendance')}</option>
+                        {GUEST_ATTENDANCE_FILTERS.filter((a) => a !== 'all').map((a) => (
+                          <option key={a} value={a}>
+                            {t(`guests.attendance.${a}`)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                   <label className="mini-field">
                     <span>{t('guests.filters.sort')}</span>
                     <select name="sort" defaultValue={sort}>
@@ -394,6 +420,7 @@ export default async function GuestsPage({
                         <th className="c-invite">{t('guests.columns.invitation')}</th>
                         <th className="c-rsvp">{t('guests.columns.rsvp')}</th>
                         <th className="c-comp">{t('guests.columns.companions')}</th>
+                        {doorOpened && <th className="c-att">{t('guests.columns.attendance')}</th>}
                         <th className="c-status">{t('guests.columns.status')}</th>
                         <th className="c-added">{t('guests.columns.added')}</th>
                       </tr>
@@ -463,6 +490,19 @@ export default async function GuestsPage({
                                 : t('guests.companionsShort', { count: g.allowedCompanions })}
                             </span>
                           </td>
+                          {doorOpened && (
+                            <td className="c-att">
+                              <AttendanceCell
+                                inside={g.checkedIn}
+                                expected={
+                                  g.status === 'active' && g.rsvpStatus === 'confirmed'
+                                    ? 1 + g.companionCount
+                                    : 0
+                                }
+                                label={(k) => t(`guests.attendance.${k}`)}
+                              />
+                            </td>
+                          )}
                           <td className="c-status">
                             <span className={`gstatus gstatus-${g.status}`}>
                               {t(`guests.status.${g.status}`)}
@@ -526,5 +566,26 @@ export default async function GuestsPage({
 
       <GuestPanels eventId={id} params={sp} groups={groups} editable={editable} event={e} />
     </div>
+  );
+}
+
+function AttendanceCell({
+  inside,
+  expected,
+  label,
+}: {
+  inside: number;
+  expected: number;
+  label: (key: 'not_arrived' | 'partial' | 'complete') => string;
+}) {
+  if (expected === 0 && inside === 0) return <span className="muted">—</span>;
+  const state = inside === 0 ? 'not_arrived' : inside < expected ? 'partial' : 'complete';
+  return (
+    <span className={`att att-${state}`} title={label(state)}>
+      <span className="num">
+        {inside}/{expected || inside}
+      </span>
+      <span className="sr-only">{label(state)}</span>
+    </span>
   );
 }

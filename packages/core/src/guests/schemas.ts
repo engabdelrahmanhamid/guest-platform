@@ -92,7 +92,9 @@ export const cancelInputSchema = z.object({
 });
 
 export const GUEST_STATUS_FILTERS = ['all', 'active', 'cancelled'] as const;
-export const GUEST_SOURCE_FILTERS = ['all', 'manual', 'excel_import'] as const;
+export const GUEST_SOURCE_FILTERS = ['all', 'manual', 'excel_import', 'walk_in'] as const;
+/** Arrival at the door, for confirmed guests: nobody yet, part of the party, everyone. */
+export const GUEST_ATTENDANCE_FILTERS = ['all', 'not_arrived', 'partial', 'complete'] as const;
 export const GUEST_SORTS = ['recent', 'oldest', 'name'] as const;
 export const GUEST_RSVP_FILTERS = ['all', 'pending', 'confirmed', 'declined'] as const;
 /** Invitation progress: never handed off, shared but not yet opened, opened by the guest. */
@@ -114,6 +116,7 @@ export const guestListQuerySchema = z.object({
   ),
   rsvp: oneOf(GUEST_RSVP_FILTERS, 'all'),
   invite: oneOf(GUEST_INVITE_FILTERS, 'all'),
+  attendance: oneOf(GUEST_ATTENDANCE_FILTERS, 'all'),
   sort: oneOf(GUEST_SORTS, 'recent'),
   page: z.preprocess((v) => {
     const n = Number(v);

@@ -30,7 +30,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { absolute: t('metaTitle') },
     description: t('metaDescription'),
     robots: { index: false, follow: false },
-    referrer: 'same-origin',
+    referrer: 'origin',
     openGraph: { title: t('metaTitle'), description: t('metaDescription') },
   };
 }
@@ -52,7 +52,7 @@ export default async function InvitationPage({ params, searchParams }: Props) {
     await noteUnknownToken(ctx.db, client, ctx.now());
     notFound();
   }
-  const qrSvg = view.pass?.display === 'valid' ? await passQrSvg(view.pass.token) : null;
+  const qrSvg = view.pass?.token ? await passQrSvg(view.pass.token) : null;
   return (
     <>
       <GuestExperience

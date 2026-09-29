@@ -7,3 +7,4 @@ export * from './events';
 export * from './platform';
 export * from './guests';
 export * from './lifecycle';
+export * from './checkin';

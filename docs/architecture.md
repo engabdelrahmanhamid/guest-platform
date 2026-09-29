@@ -73,15 +73,29 @@ or fill a gap in it, and stay open until the product owner confirms them.
 
 ## Guest experience (phase 3)
 
-Implementation choices made in phase 3. Items marked _awaiting approval_ differ from the proposal
-or fill a gap in it.
+Implementation choices made in phase 3, approved on 2026-09-28 with the follow-ups below.
 
 - Invitation, RSVP, pass and design are separate tables (`invitations`, `rsvps`, `guest_passes`,
   `invitation_designs`, plus `message_templates` for the share text). Each guest gets one
   invitation and one `pending` RSVP when it is created; migration 0004 backfills existing guests.
 - Invitation and pass tokens are 22 random base62 characters (about 131 bits), separate from each
-  other, stored in plain text so the owner can re-share the link, and never logged. The link is
-  `/i/<token>` with no id or phone in it. Rotating a link replaces the token at once.
+  other, and never logged. The link is `/i/<token>` with no id or phone in it. Rotating a link
+  replaces the token at once.
+- Token storage (phase 3 follow-up, migration 0005): tokens are bearer credentials, so the
+  database never holds them in plain text. Each row keeps `token_hash` (SHA-256, unique, used for
+  every lookup: the guest page, RSVP, open beacon and the scanner's pass lookup) and `token_enc`
+  (AES-256-GCM with `APP_ENCRYPTION_KEY`, with the row kind and id as associated data, so a
+  ciphertext copied to another row fails to decrypt). A token is decrypted only to build the
+  owner's link, the share text or export, or a valid pass's QR, and the decrypted value must
+  hash back to `token_hash`. A plain hash needs no key because the tokens are random; an HMAC
+  would add nothing. Rotation and replacement write a new hash and ciphertext. Losing
+  `APP_ENCRYPTION_KEY` means links and QR codes can't be shown again (lookups keep working, and
+  rotating or replacing issues new ones); a leaked key plus a database copy exposes the tokens, as
+  it would the admin TOTP secrets. Key rotation is not built yet (one key; hardening phase).
+  Migration: the runner (`packages/db/src/migrate.ts`) encrypts existing tokens with the key just
+  before 0005 runs; 0005 moves the ciphertext into place, refuses to continue if any row was
+  missed, then drops the plain-text columns. Run it with `APP_ENCRYPTION_KEY` set whenever the
+  database already has invitations.
 - Delivery status: phase 3 uses `not_sent` and `shared` only ("shared" = the owner opened WhatsApp
   with the message or copied the link or message; it never means delivered). `queued`, `sent`,
   `delivered`, `read` and `failed` exist for the messaging phase. Share records live on the
@@ -99,8 +113,9 @@ or fill a gap in it.
   Cancelling an event revokes nothing; the pass shows as cancelled from the event state.
 - Guest page by event state: draft or disabled → "not available" with no personal data;
   active and live → invitation with RSVP; completed → read-only, pass shown as ended;
-  cancelled → cancellation notice, no pass; **archived → read-only like completed, or the
-  cancellation notice if the event was cancelled before archiving**. _Awaiting approval._
+  cancelled → cancellation notice, no pass; archived after completing → read-only like
+  completed; archived after cancelling → the cancellation notice (approved: cancellation never
+  collapses into completion).
 - Sharing and the links export are allowed while the event is active or live (not in draft).
   The design and share text can be edited while the event is draft, active or live.
 - Design: four templates (elegant, celebration, formal, minimal), one primary colour (custom
@@ -110,11 +125,60 @@ or fill a gap in it.
   event is published (the owner can see them earlier for the preview).
 - Public pages: rate limits per client (a keyed hash of the IP, never the IP) and per link; a
   client that presents more than 30 unknown tokens in 15 minutes is blocked for the window.
-  Responses are `private, no-store`, `noindex`, and `Referrer-Policy: same-origin` (not
-  `no-referrer` as in the proposal: under `no-referrer` browsers send `Origin: null` on form
-  posts, which breaks the RSVP form without JavaScript; the token still never reaches other
-  sites). _Awaiting approval._
+  Responses are `private, no-store`, `noindex`, and `Referrer-Policy: origin`, so the token never
+  leaves in a Referer header, to this site or any other. (`no-referrer` makes browsers send
+  `Origin: null` on the no-JavaScript RSVP form, which Next's origin check rejects. Tested under
+  `origin`: the no-JS form posts with the site's origin and is accepted; posts with another
+  origin, `null`, or a look-alike host are rejected, and a same-origin replay is accepted.)
+- Passes: no standalone revoke (approved). A compromised pass is replaced; a guest who shouldn't
+  attend declines or is cancelled. Pass history is kept.
 - Hard delete is refused once the invitation was shared or opened or the guest answered.
+
+## Check-in (phase 4)
+
+Implementation choices made in phase 4. Items marked _awaiting approval_ differ from the proposal
+or fill a gap in it, and stay open until the product owner confirms them.
+
+- Staff access: the owner (or a supervisor, from the scanner) sends a one-time link
+  (`/s/<token>`, 128 random bits, stored as SHA-256 only). Opening it only shows who it is for,
+  so link previews can't use it up; tapping Continue redeems it on that device and sets an
+  http-only, same-site strict `gp_staff` cookie holding the device session secret (also stored
+  hashed). A second tap or device sees "already used" with no names. Sending a new link closes
+  the open one and signs that member's devices out; removing a member does the same.
+- Staff session validity is derived on every request, not stored: the session is valid while it
+  is not ended, the member is not removed, and the event is `active` or `live` and not disabled.
+  Completing the event ends every door session at once; reopening restores them. The cookie
+  itself lasts at most 7 days. (The proposal had a stored `expires_at`.) _Awaiting approval._
+- Door capabilities: every door member scans and admits; the owner and supervisors also
+  correct counts, register walk-ins, confirm unanswered guests at the door and resend or stop
+  colleagues' access. Staff see a guest's name, group, masked phone (`•••• 1234`) and party,
+  never the full phone, email or notes; the walk-in duplicate warning is masked the same way.
+- Admitting: the scanner reads `GP1.<token>` (the browser's QR detector where available,
+  otherwise jsQR on camera frames) or finds the guest by name or phone. The card shows expected,
+  inside and remaining; the door admits any number from 1 to the remaining party (partial
+  arrival). A pass of another event reads as an unknown code; a replaced pass is refused with a
+  hint to open the invitation for the current one.
+- Every tap carries a client idempotency key made when the button is pressed. Writes take an
+  advisory lock on the key and replay the earlier result if it was already applied, so a retry
+  after a lost connection never admits twice. The scanner does not admit offline: on a lost
+  connection it keeps the pending tap and offers Retry with the same key. _Awaiting approval._
+- The database enforces the ledger (`check_in_logs`, append-only): the `apply_check_in` trigger
+  checks the event state, the running count and the party size, requires an active pass for QR
+  check-ins, and updates the `attendance` projection, which nothing else may write.
+- Corrections are new ledger rows with a reason (never edits): owner and supervisors while
+  `live`; the owner alone after completion, within the reopen window. The count stays between 0
+  and the expected party. _Awaiting approval._
+- Once anyone from a party is inside: the guest's own answer is locked (the invitation page says
+  so), the owner can't lower the party below the count inside, the guest can't be cancelled or
+  deleted, and a `live` event can't be cancelled.
+- Confirm at the door changes only an unanswered guest to confirmed (within their allowance); a
+  declined answer stays the owner's to change.
+- Walk-ins are guests with source `walk_in`, phone optional, a confirmed answer and their whole
+  party admitted in the same transaction. They are counted apart and never added to expected
+  attendance. A phone already on the list shows the existing guests first.
+- Load test (2026-09-29, one local server): 6 scanner phones admitted 500 confirmed guests
+  (999 people) through the real scanner UI in 58 seconds; admit latency p50 289 ms, p95 335 ms,
+  no errors, one ledger row per admission.
 
 ## Phases
 

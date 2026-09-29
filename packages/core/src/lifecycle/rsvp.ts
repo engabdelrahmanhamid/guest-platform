@@ -2,10 +2,11 @@ import { events, guests, invitations, rsvps } from '@gp/db/schema';
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { type ActivityInput, type Actor, recordActivities } from '../activity/activity';
+import { checkedInCount } from '../checkin/count';
 import { requireEventAccess } from '../authorization/authorization';
 import type { CoreContext, DbOrTx } from '../shared/context';
 import { DomainError } from '../shared/errors';
-import { isPublicToken } from '../shared/tokens';
+import { isPublicToken, publicTokenHash } from '../shared/tokens';
 import { parseInput } from '../shared/validation';
 import { MAX_COMPANIONS } from '../guests/schemas';
 import { activePass, issuePass, type PassRow, replaceActivePass, revokeActivePass } from './passes';
@@ -49,12 +50,13 @@ export interface RsvpOutcome {
  *   pending/confirmed → declined   companions go to 0 and the active pass is revoked
  * Repeating the current answer changes nothing and records nothing.
  */
-async function applyRsvp(
+export async function applyRsvp(
   tx: DbOrTx,
   target: { event: EventRow; guest: GuestRow; rsvp: RsvpRow },
   input: RsvpInput,
   actor: Actor,
   now: Date,
+  key: Buffer,
 ): Promise<RsvpOutcome> {
   const { event, guest, rsvp } = target;
   const companions = input.status === 'confirmed' ? input.companions : 0;
@@ -80,7 +82,7 @@ async function applyRsvp(
     .where(eq(rsvps.id, rsvp.id))
     .returning();
 
-  const scope = { actor, workspaceId: event.workspaceId, now };
+  const scope = { actor, workspaceId: event.workspaceId, now, key };
   const base = { actor, eventId: event.id, workspaceId: event.workspaceId, guestId: guest.id };
   const entries: ActivityInput[] = [];
   let pass: PassRow | null;
@@ -142,7 +144,7 @@ export async function respondToInvitation(
     const [inv] = await tx
       .select({ id: invitations.id, eventId: invitations.eventId, guestId: invitations.guestId })
       .from(invitations)
-      .where(eq(invitations.token, token));
+      .where(eq(invitations.tokenHash, publicTokenHash(token)));
     if (!inv) throw new DomainError('not_found');
     const [event] = await tx.select().from(events).where(eq(events.id, inv.eventId)).for('share');
     if (!event) throw new DomainError('not_found');
@@ -151,15 +153,25 @@ export async function respondToInvitation(
     const [still] = await tx
       .select({ id: invitations.id })
       .from(invitations)
-      .where(and(eq(invitations.id, inv.id), eq(invitations.token, token)));
+      .where(and(eq(invitations.id, inv.id), eq(invitations.tokenHash, publicTokenHash(token))));
     if (!still) throw new DomainError('not_found');
 
     const state = invitationPageState(event, guest);
     if (state !== 'open') {
       throw new DomainError(guest.status !== 'active' ? 'guest_not_active' : 'rsvp_closed');
     }
+    // Once anyone in the party is inside, the guest's own answer is fixed; the owner can still
+    // change it (never below the people already inside).
+    if ((await checkedInCount(tx, guest.id)) > 0) throw new DomainError('rsvp_locked_checked_in');
     const now = ctx.now();
-    const outcome = await applyRsvp(tx, { event, guest, rsvp }, input, { type: 'guest' }, now);
+    const outcome = await applyRsvp(
+      tx,
+      { event, guest, rsvp },
+      input,
+      { type: 'guest' },
+      now,
+      ctx.encryptionKey,
+    );
     // Answering proves the guest opened the page, even if the open beacon never ran.
     await markOpened(tx, { id: inv.id, eventId: event.id, guestId: guest.id }, event, now);
     return outcome;
@@ -228,7 +240,12 @@ export async function setGuestRsvp(
     if (!rsvpOpen(event)) throw new DomainError('rsvp_closed', undefined, { status: event.status });
     const { guest, rsvp } = await lockGuestAndRsvp(tx, eventId, guestId);
     if (guest.status !== 'active') throw new DomainError('guest_not_active');
-    return applyRsvp(tx, { event, guest, rsvp }, input, actor, ctx.now());
+    const inside = await checkedInCount(tx, guest.id);
+    const party = input.status === 'confirmed' ? 1 + input.companions : 0;
+    if (party < inside) {
+      throw new DomainError('party_below_checked_in', undefined, { checkedIn: inside });
+    }
+    return applyRsvp(tx, { event, guest, rsvp }, input, actor, ctx.now(), ctx.encryptionKey);
   });
 }
 
@@ -249,6 +266,7 @@ export async function replaceGuestPass(
       actor,
       workspaceId: event.workspaceId,
       now: ctx.now(),
+      key: ctx.encryptionKey,
     });
     if (!replaced) throw new DomainError('no_active_pass');
     await recordActivities(tx, replaced.activities);

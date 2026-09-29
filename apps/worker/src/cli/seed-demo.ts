@@ -2,6 +2,8 @@ import {
   addGuest,
   addStaff,
   cancelGuest,
+  checkIn,
+  correctAttendance,
   commitImport,
   type CoreContext,
   createEvent,
@@ -13,6 +15,11 @@ import {
   loadConfig,
   LocalDiskStorage,
   MemoryMailer,
+  invitationToken,
+  type DoorCaller,
+  redeemStaffLink,
+  registerWalkIn,
+  sendStaffAccess,
   recordInvitationOpen,
   recordInvitationShare,
   respondToInvitation,
@@ -27,7 +34,8 @@ import {
   writeXlsx,
 } from '@gp/core';
 import { createDatabase, createPool } from '@gp/db';
-import { guests, invitations } from '@gp/db/schema';
+import { eventMemberships, guestPasses, guests, invitations, rsvps } from '@gp/db/schema';
+import { randomUUID } from 'node:crypto';
 import { and, asc, eq } from 'drizzle-orm';
 import sharp from 'sharp';
 
@@ -90,6 +98,8 @@ interface DemoEvent {
   design?: { template: string; color: string; bodyText?: string; cover?: [string, string] };
   /** Share, open and answer the first guests' invitations (counts of active guests). */
   responses?: { shared: number; opened: number };
+  /** Door activity for a live event: confirmed guests admitted, and walk-ins. */
+  door?: { admitted: number; walkIns: number };
 }
 
 const EVENTS: DemoEvent[] = [
@@ -137,7 +147,7 @@ const EVENTS: DemoEvent[] = [
       endsAt: riyadh(7 * HOUR),
       venueName: 'مركز الرياض الدولي للمؤتمرات',
       city: 'الرياض',
-      defaultAllowedCompanions: 0,
+      defaultAllowedCompanions: 1,
     },
     staff: [
       { displayName: 'خالد الشهري', phone: '0550000201', isSupervisor: true },
@@ -150,6 +160,7 @@ const EVENTS: DemoEvent[] = [
     ],
     design: { template: 'formal', color: '#1f3a5f', cover: ['#dbe3ee', '#5d7aa3'] },
     responses: { shared: 150, opened: 120 },
+    door: { admitted: 48, walkIns: 3 },
   },
   {
     createdAgo: 2 * HOUR,
@@ -330,12 +341,13 @@ async function seedResponses(
   eventId: string,
   spec: NonNullable<DemoEvent['responses']>,
 ) {
-  const rows = await ctx.db
-    .select({ id: guests.id, token: invitations.token, allowed: guests.allowedCompanions })
+  const found = await ctx.db
+    .select({ id: guests.id, inv: invitations, allowed: guests.allowedCompanions })
     .from(guests)
     .innerJoin(invitations, eq(invitations.guestId, guests.id))
     .where(and(eq(guests.eventId, eventId), eq(guests.status, 'active')))
     .orderBy(asc(guests.createdAt), asc(guests.id));
+  const rows = found.map((r) => ({ ...r, token: invitationToken(r.inv, ctx.encryptionKey) }));
   for (const [i, g] of rows.entries()) {
     if (i < spec.shared) await recordInvitationShare(ctx, ownerId, eventId, g.id, 'whatsapp');
     if (i >= spec.opened) continue;
@@ -354,6 +366,80 @@ async function seedResponses(
   for (const g of rows.slice(spec.opened, spec.opened + 2)) {
     await setGuestRsvp(ctx, ownerId, eventId, g.id, { status: 'confirmed', companions: 0 });
   }
+}
+
+const MINUTE = 60_000;
+
+/**
+ * The door of a live event: staff devices signed in through their links (the last member's link
+ * is left unopened), guests admitted over the last hour (some parties only partly), one
+ * supervisor correction and a few walk-ins.
+ */
+async function seedDoor(ownerId: string, eventId: string, spec: NonNullable<DemoEvent['door']>) {
+  const db = at(0).db;
+  const owner: DoorCaller = { kind: 'owner', userId: ownerId };
+  const team = await db
+    .select()
+    .from(eventMemberships)
+    .where(and(eq(eventMemberships.eventId, eventId), eq(eventMemberships.role, 'staff')))
+    .orderBy(asc(eventMemberships.createdAt));
+  const devices = ['iPhone · Safari', 'Android · Chrome', 'iPad · Safari'];
+  const callers: DoorCaller[] = [owner];
+  let supervisor: DoorCaller = owner;
+  for (const [i, m] of team.entries()) {
+    const { url } = await sendStaffAccess(at(-75 * MINUTE), owner, eventId, m.id);
+    if (i === team.length - 1 && team.length > 1) continue;
+    const token = url.slice(url.lastIndexOf('/') + 1);
+    const { sessionToken } = await redeemStaffLink(at(-70 * MINUTE), token, devices[i % 3]!);
+    const caller: DoorCaller = { kind: 'staff', sessionToken };
+    callers.push(caller);
+    if (m.isSupervisor) supervisor = caller;
+  }
+  const confirmed = await db
+    .select({ id: guests.id, companions: rsvps.companionCount })
+    .from(guests)
+    .innerJoin(rsvps, eq(rsvps.guestId, guests.id))
+    .where(
+      and(eq(guests.eventId, eventId), eq(guests.status, 'active'), eq(rsvps.status, 'confirmed')),
+    )
+    .orderBy(asc(guests.createdAt), asc(guests.id));
+  const admitted = confirmed.slice(0, spec.admitted);
+  const step = Math.floor((55 * MINUTE) / Math.max(1, admitted.length));
+  for (const [i, g] of admitted.entries()) {
+    const party = 1 + g.companions;
+    const count = party > 1 && i % 5 === 0 ? 1 : party;
+    await checkIn(at(-58 * MINUTE + i * step), callers[i % callers.length]!, eventId, {
+      guestId: g.id,
+      count,
+      method: i % 6 === 0 ? 'search' : 'qr',
+      ...(i % 6 === 0 ? {} : { passId: await activePassId(g.id) }),
+      idempotencyKey: randomUUID(),
+    });
+  }
+  const fix = admitted.find((g, i) => g.companions > 0 && i % 5 !== 0);
+  if (fix) {
+    await correctAttendance(at(-20 * MINUTE), supervisor, eventId, {
+      guestId: fix.id,
+      delta: -1,
+      reason: 'سُجّل مرافق لم يحضر بعد',
+      idempotencyKey: randomUUID(),
+    });
+  }
+  for (let i = 0; i < spec.walkIns; i++) {
+    await registerWalkIn(at(-30 * MINUTE + i * 7 * MINUTE), supervisor, eventId, {
+      fullName: guestName(200 + i * 3),
+      partySize: 1 + (i % 3),
+      idempotencyKey: randomUUID(),
+    });
+  }
+}
+
+async function activePassId(guestId: string): Promise<string> {
+  const [pass] = await at(0)
+    .db.select({ id: guestPasses.id })
+    .from(guestPasses)
+    .where(and(eq(guestPasses.guestId, guestId), eq(guestPasses.status, 'active')));
+  return pass!.id;
 }
 
 try {
@@ -389,6 +475,7 @@ try {
       await transitionEvent(at(-ago), ownerId, eventId, action, reason ? { reason } : {});
     }
     if (e.responses) await seedResponses(at(-1 * HOUR), ownerId, eventId, e.responses);
+    if (e.door) await seedDoor(ownerId, eventId, e.door);
   }
   log.info({ ownerId, adminId, events: EVENTS.length }, 'demo data seeded');
 } catch (err) {

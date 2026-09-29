@@ -1,5 +1,12 @@
-import { activity, eventMemberships, events, users, workspaceMembers } from '@gp/db/schema';
-import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import {
+  activity,
+  attendance,
+  eventMemberships,
+  events,
+  users,
+  workspaceMembers,
+} from '@gp/db/schema';
+import { and, desc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { type Actor, recordActivity } from '../activity/activity';
 import { type EventRow, requireEventAccess } from '../authorization/authorization';
@@ -249,6 +256,15 @@ export async function transitionEvent(
     const check = checkTransition(event, action, now);
     if (!check.ok) {
       throw new DomainError(check.code, undefined, { from: event.status, action });
+    }
+    if (action === 'cancel' && event.status === 'live') {
+      // Once anyone is inside, the event happened: the owner ends it instead.
+      const [inside] = await tx
+        .select({ id: attendance.guestId })
+        .from(attendance)
+        .where(and(eq(attendance.eventId, eventId), gt(attendance.checkedInCount, 0)))
+        .limit(1);
+      if (inside) throw new DomainError('event_has_arrivals');
     }
     if (action === 'activate') {
       const [user] = await tx

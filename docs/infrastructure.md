@@ -18,8 +18,9 @@ Environments: `staging` and `production`, each with its own database.
 ## Release steps
 
 1. Build both images from the same commit.
-2. Run migrations once:
-   `docker run --rm -e DATABASE_URL=… <worker-image> packages/db/node_modules/.bin/tsx packages/db/src/migrate.ts`
+2. Run migrations once, with the same key the app uses (the runner encrypts stored invitation and
+   pass tokens when a migration needs it; see "Token storage" in architecture.md):
+   `docker run --rm -e DATABASE_URL=… -e APP_ENCRYPTION_KEY=… <worker-image> packages/db/node_modules/.bin/tsx packages/db/src/migrate.ts`
 3. Roll out `web` and `worker`.
 
 ## Configuration

@@ -49,7 +49,23 @@ export type DomainErrorCode =
   | 'no_active_pass'
   | 'image_unsupported'
   | 'image_too_large'
-  | 'image_too_small';
+  | 'image_too_small'
+  | 'checkin_not_open'
+  | 'not_confirmed'
+  | 'pass_unknown'
+  | 'pass_revoked'
+  | 'party_complete'
+  | 'count_over_remaining'
+  | 'correction_out_of_range'
+  | 'idempotency_conflict'
+  | 'rsvp_locked_checked_in'
+  | 'party_below_checked_in'
+  | 'guest_checked_in'
+  | 'event_has_arrivals'
+  | 'rsvp_declined'
+  | 'walk_in_phone_exists'
+  | 'staff_link_invalid'
+  | 'staff_session_invalid';
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode;

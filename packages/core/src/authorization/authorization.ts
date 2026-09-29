@@ -21,13 +21,15 @@ export const EVENT_CAPABILITIES = [
   'guests.manage',
   'invitations.manage',
   'rsvp.manage',
+  'checkin.operate',
 ] as const;
 export type EventCapability = (typeof EVENT_CAPABILITIES)[number];
 
 const ROLE_CAPABILITIES: Record<'owner' | 'staff', ReadonlySet<EventCapability>> = {
   owner: new Set(EVENT_CAPABILITIES),
-  // Staff operate check-in from phase 4; they hold no owner capability (no guest management).
-  staff: new Set<EventCapability>(['event.view']),
+  // Staff operate check-in only (no guest management). Staff reach it through a device session,
+  // never a login, so this entry matters for `roleCan` checks, not for requireEventAccess.
+  staff: new Set<EventCapability>(['event.view', 'checkin.operate']),
 };
 
 export function roleCan(role: 'owner' | 'staff', capability: EventCapability): boolean {

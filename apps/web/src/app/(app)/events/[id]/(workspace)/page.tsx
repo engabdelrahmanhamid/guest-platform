@@ -1,4 +1,5 @@
 import {
+  attendanceSummary,
   getInvitationDesign,
   guestSummary,
   listMemberships,
@@ -55,6 +56,10 @@ export default async function EventOverviewPage({
       ])
     : [[], [], null, null, null];
   const staff = members.filter((m) => m.role === 'staff');
+  const arrivals =
+    isOwner && ['live', 'completed', 'archived'].includes(e.status)
+      ? await attendanceSummary(ctx, principal.user.id, id)
+      : null;
   const tz = e.timezone;
   const base = `/events/${id}`;
 
@@ -199,6 +204,17 @@ export default async function EventOverviewPage({
                       <p>{t('overview.rsvp.expectedHint')}</p>
                     </div>
                   </dl>
+                  {arrivals && (
+                    <p className="rsvp-funnel att-line">
+                      <Link href={`${base}/checkin`}>
+                        {t('overview.arrivals', {
+                          inside: formatCount(arrivals.checkedInPeople),
+                          expected: formatCount(arrivals.expectedPeople),
+                          walkIns: formatCount(arrivals.walkInPeople),
+                        })}
+                      </Link>
+                    </p>
+                  )}
                   {rsvp.invited > 0 && (
                     <p className="rsvp-funnel">
                       <Link href={`${base}/messages`}>

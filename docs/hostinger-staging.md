@@ -9,13 +9,26 @@ re-checked and must be confirmed before buying.
 
 ## 1. Is `apps/web` supported?
 
-Yes, with two things to set. Cloud Startup lists Node.js web apps (Next.js is a supported backend
-framework), Node 18, 20, 22 and 24, GitHub import, npm/Yarn/pnpm, environment variables in the
-dashboard, and automatic SSL for the domain. The repo needs Node 22.12 or newer, so select 22 or 24.
-The plan allows 10 Node.js sites, 4 CPU cores and 4 GB RAM in total. Set the build command to
-`pnpm install --frozen-lockfile && pnpm --filter @gp/web build` and the start command to
-`pnpm --filter @gp/web start` (`next start`, which the local production runs already use). Build
-with `NODE_ENV` unset. There is no SSH on this plan, so nothing can be run by hand on the server.
+Yes, but not through Hostinger's generated Next.js launcher: it looks for `next` next to itself, and
+in this pnpm monorepo `next` lives in a linked store, so the runtime answered 503 ("Cannot find module
+'next'"). The repo now builds a self-contained folder from Next.js's own standalone output instead,
+and Hostinger runs that folder's `server.js` directly. Settings:
+
+| Setting                 | Value                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Framework preset        | Other (not Next.js: that preset adds the launcher that fails)                                                                  |
+| Node.js                 | 22.x (the app needs 22.12 or newer)                                                                                            |
+| Package manager         | pnpm                                                                                                                           |
+| Root directory          | the repository root (`./`), **not** `apps/web`: the build needs the whole monorepo                                             |
+| Build command           | `pnpm run build:hostinger` (if Hostinger does not install first: `pnpm install --frozen-lockfile && pnpm run build:hostinger`) |
+| Output directory        | `dist/hostinger`                                                                                                               |
+| Entry file              | `server.js` inside the output directory (`dist/hostinger/server.js` if a path from the root is needed)                         |
+| Start command, if asked | `node dist/hostinger/server.js`                                                                                                |
+
+The launcher binds to `0.0.0.0`, uses the `PORT` Hostinger provides (default 3000) and ignores the
+`HOSTNAME` variable (often the machine's own name, which makes the server unreachable). The folder
+keeps pnpm's relative symlinks, so it must be built on the host or copied with symlinks preserved
+(`cp -a`, `tar`); an upload that drops symlinks breaks it. The folder is about 57 MB.
 
 ## 2. Can `apps/worker` run reliably as a second app?
 
@@ -107,8 +120,7 @@ proves delivery.
 1. Create the external database, bucket and SMTP account first, and note their values (no guest data).
 2. Add the staging subdomain in hPanel and point it at the web app (SSL is issued automatically).
 3. Add a Node.js web app from the GitHub repository, branch `phase-5/pilot-readiness` (or `main` after
-   merge). Node 22 or 24, package manager pnpm, the build and start commands from section 1, the
-   variables from section 4.
+   merge), with the settings table in section 1 and the variables from section 4.
 4. From a laptop or CI, run `pnpm db:migrate` against the external database, then
    `pnpm db:generate` shows no change. Redeploy.
 5. Open `https://<subdomain>/api/health`; expect `{"status":"ok"}`.

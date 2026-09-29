@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
 
@@ -5,6 +6,9 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Trace dependencies from the monorepo root, so the standalone output holds everything the server
+  // needs whichever folder a host builds from.
+  outputFileTracingRoot: fileURLToPath(new URL('../..', import.meta.url)),
   transpilePackages: ['@gp/core', '@gp/db'],
   serverExternalPackages: ['@node-rs/argon2', 'sharp'],
   poweredByHeader: false,

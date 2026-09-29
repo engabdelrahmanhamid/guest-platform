@@ -77,6 +77,19 @@ export async function closeStaffAccess(
 }
 
 /**
+ * A supervisor manages plain staff only. A link is handed to whoever asks, so letting a
+ * supervisor issue one for themselves or another supervisor would let them act as that person
+ * (check-ins are attributed to the link's owner). Only the owner manages supervisors.
+ */
+function requireMayManage(
+  access: { member: { id: string; role: string } },
+  staff: { id: string; isSupervisor: boolean },
+) {
+  if (access.member.role === 'owner') return;
+  if (staff.id === access.member.id || staff.isSupervisor) throw new DomainError('forbidden');
+}
+
+/**
  * Issues a new access link for a staff member (first send, or resend to switch devices). Any
  * open link stops working and signed-in devices are signed out, in the same transaction. The
  * raw token is returned once, for the owner to share; only its hash is stored.
@@ -100,6 +113,7 @@ export async function sendStaffAccess(
       );
     }
     const staff = await lockStaffMember(tx, eventId, membershipId);
+    requireMayManage(access, staff);
     const now = ctx.now();
     const closed = await closeStaffAccess(tx, staff.id, 'resent', access.member.id, now);
     const token = randomToken(16);
@@ -145,6 +159,7 @@ export async function revokeStaffAccess(
       now: ctx.now(),
     });
     const staff = await lockStaffMember(tx, eventId, membershipId);
+    requireMayManage(access, staff);
     const closed = await closeStaffAccess(tx, staff.id, 'revoked', access.member.id, ctx.now());
     const changed = closed.links + closed.sessions > 0;
     if (changed) {

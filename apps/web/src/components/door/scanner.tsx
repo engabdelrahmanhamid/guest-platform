@@ -413,7 +413,7 @@ export function Scanner({
           />
         )}
         {tab === 'team' && can.manageAccess && (
-          <Team actions={actions} onFail={searchFailed} onOffline={goneOffline} />
+          <Team actions={actions} isStaff={isStaff} onFail={searchFailed} onOffline={goneOffline} />
         )}
         {tab === 'walkIn' && can.walkIn && (
           <WalkIn
@@ -957,10 +957,13 @@ function WalkIn({
  */
 function Team({
   actions,
+  isStaff,
   onFail,
   onOffline,
 }: {
   actions: DoorActions;
+  /** A supervisor on a device manages plain staff only; the owner manages everyone. */
+  isStaff: boolean;
   onFail: (code: string) => void;
   onOffline: () => void;
 }) {
@@ -1071,7 +1074,8 @@ function Team({
                 </button>
               </div>
             ) : (
-              !m.self && (
+              !m.self &&
+              !(isStaff && m.isSupervisor) && (
                 <div className="row-tight">
                   <button
                     type="button"

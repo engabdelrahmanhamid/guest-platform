@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { attendance, checkInLogs, guestPasses, guests, rsvps } from '@gp/db/schema';
+import { attendance, checkInLogs, guestPasses, guests, rsvps, staffSessions } from '@gp/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { createEvent, transitionEvent } from '../events/events';
@@ -8,7 +8,14 @@ import { invitationToken } from '../lifecycle/invitations';
 import { passToken } from '../lifecycle/passes';
 import { replaceGuestPass, respondToInvitation, setGuestRsvp } from '../lifecycle/rsvp';
 import { addStaff, removeStaff } from '../memberships/memberships';
-import { createOwner, createTestContext, databaseUrl, eventInput } from '../testing/harness';
+import { setEventDisabled } from '../admin/admin';
+import {
+  createOwner,
+  createTestContext,
+  createVerifiedAdmin,
+  databaseUrl,
+  eventInput,
+} from '../testing/harness';
 import {
   attendanceSummary,
   getDoorOverview,
@@ -173,6 +180,18 @@ describe.skipIf(!databaseUrl)('check-in', () => {
       );
       const r = await sendStaffAccess(ctx, sup.caller, eventId, plain.membershipId);
       expect(r.resent).toBe(true);
+      // A supervisor can't issue a link for themselves or another supervisor: they could
+      // redeem it and act as that person. Only the owner manages supervisors.
+      const other = await staff(true);
+      await expect(sendStaffAccess(ctx, sup.caller, eventId, sup.membershipId)).rejects.toEqual(
+        code('forbidden'),
+      );
+      await expect(sendStaffAccess(ctx, sup.caller, eventId, other.membershipId)).rejects.toEqual(
+        code('forbidden'),
+      );
+      await expect(revokeStaffAccess(ctx, sup.caller, eventId, other.membershipId)).rejects.toEqual(
+        code('forbidden'),
+      );
     });
 
     it('stops staff sessions when check-in ends and brings them back on reopen', async () => {
@@ -184,6 +203,71 @@ describe.skipIf(!databaseUrl)('check-in', () => {
       );
       await transitionEvent(ctx, owner.userId, eventId, 'reopen');
       expect((await getDoorOverview(ctx, k.caller, eventId)).event.status).toBe('live');
+    });
+
+    it('never revives a revoked session on reopen, only the one that was merely paused', async () => {
+      const { owner, eventId, ownerCaller, staff } = await setup();
+      const paused = await staff();
+      const revoked = await staff();
+      const replaced = await staff();
+      const removed = await staff();
+      await revokeStaffAccess(ctx, ownerCaller, eventId, revoked.membershipId);
+      await sendStaffAccess(ctx, ownerCaller, eventId, replaced.membershipId);
+      await removeStaff(ctx, owner.userId, eventId, removed.membershipId);
+
+      await transitionEvent(ctx, owner.userId, eventId, 'complete');
+      await transitionEvent(ctx, owner.userId, eventId, 'reopen');
+
+      expect((await getDoorOverview(ctx, paused.caller, eventId)).event.status).toBe('live');
+      for (const k of [revoked, replaced, removed]) {
+        await expect(getDoorOverview(ctx, k.caller, eventId)).rejects.toEqual(
+          code('staff_session_invalid'),
+        );
+      }
+    });
+
+    it('stops a device session after the seven-day cookie lifetime', async () => {
+      const { eventId, staff } = await setup();
+      const k = await staff();
+      await getDoorOverview(ctx, k.caller, eventId);
+      const before = ctx.clock.now;
+      ctx.clock.now = new Date(before.getTime() + 8 * 24 * 60 * 60_000);
+      try {
+        await expect(getDoorOverview(ctx, k.caller, eventId)).rejects.toEqual(
+          code('staff_session_invalid'),
+        );
+      } finally {
+        ctx.clock.now = before;
+      }
+    });
+
+    it('makes ending a session final in the database itself', async () => {
+      const { ownerCaller, eventId, staff } = await setup();
+      const k = await staff();
+      await revokeStaffAccess(ctx, ownerCaller, eventId, k.membershipId);
+      await expect(
+        ctx.db
+          .update(staffSessions)
+          .set({ endedAt: null, endReason: null })
+          .where(eq(staffSessions.eventId, eventId)),
+      ).rejects.toThrow();
+      await expect(getDoorOverview(ctx, k.caller, eventId)).rejects.toEqual(
+        code('staff_session_invalid'),
+      );
+    });
+
+    it('ends staff sessions for good when an admin disables the event', async () => {
+      const { eventId, staff } = await setup();
+      const admin = await createVerifiedAdmin(ctx);
+      const k = await staff();
+      await setEventDisabled(ctx, admin.principal, eventId, true, 'بلاغ أمني');
+      await expect(getDoorOverview(ctx, k.caller, eventId)).rejects.toEqual(
+        code('staff_session_invalid'),
+      );
+      await setEventDisabled(ctx, admin.principal, eventId, false, 'تمت المراجعة');
+      await expect(getDoorOverview(ctx, k.caller, eventId)).rejects.toEqual(
+        code('staff_session_invalid'),
+      );
     });
 
     it('scopes a staff session to its own event', async () => {
@@ -387,6 +471,10 @@ describe.skipIf(!databaseUrl)('check-in', () => {
       expect(byName[0]).toMatchObject({ maskedPhone: '•••• 4567', expected: 1 });
       expect(JSON.stringify(byName)).not.toContain('551234567');
       expect(await searchDoor(ctx, k.caller, eventId, '4567')).toHaveLength(1);
+      // Staff can't grow a partial number into a full one: only the last four digits, or the
+      // whole number, match.
+      expect(await searchDoor(ctx, k.caller, eventId, '55123')).toEqual([]);
+      expect(await searchDoor(ctx, k.caller, eventId, '0551234567')).toHaveLength(1);
       expect(await searchDoor(ctx, k.caller, eventId, 'x')).toEqual([]);
     });
   });
@@ -495,6 +583,31 @@ describe.skipIf(!databaseUrl)('check-in', () => {
         walkInParties: 1,
         notArrived: 1,
       });
+    });
+
+    it('counts people, parties and ledger rows separately (a +3 admission is one row)', async () => {
+      const { eventId, guest, ownerCaller, owner } = await setup();
+      const g = await guest(3); // party of 4
+      await checkIn(ctx, ownerCaller, eventId, {
+        guestId: g.guestId,
+        count: 3,
+        method: 'qr',
+        passId: g.passId,
+        idempotencyKey: key(),
+      });
+      const rows = await ctx.db.select().from(checkInLogs).where(eq(checkInLogs.eventId, eventId));
+      expect(rows).toHaveLength(1);
+      const live = await getLiveAttendance(ctx, owner.userId, eventId);
+      expect(live.totals).toMatchObject({
+        checkedInPeople: 3,
+        invitedCheckedIn: 3,
+        expectedPeople: 4,
+        partial: 1,
+        complete: 0,
+        notArrived: 0,
+      });
+      expect(live.recent).toHaveLength(1);
+      expect(live.recent[0]).toMatchObject({ delta: 3 });
     });
 
     it('warns about a walk-in whose phone is already on the list', async () => {

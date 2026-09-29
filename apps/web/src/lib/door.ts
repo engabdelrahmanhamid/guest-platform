@@ -1,5 +1,10 @@
 import 'server-only';
-import { type DoorCaller, isDomainError, requireDoorAccess } from '@gp/core';
+import {
+  type DoorCaller,
+  isDomainError,
+  requireDoorAccess,
+  STAFF_SESSION_MAX_AGE_SECONDS,
+} from '@gp/core';
 import { cookies, headers } from 'next/headers';
 import { cache } from 'react';
 import { getConfig, getCoreContext } from './server';
@@ -11,7 +16,7 @@ import { getPrincipal } from './session';
  * when check-in closes or the owner revokes it, and that is checked on every request.
  */
 const STAFF_COOKIE = 'gp_staff';
-const STAFF_COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
+const STAFF_COOKIE_MAX_AGE = STAFF_SESSION_MAX_AGE_SECONDS;
 
 export async function setStaffCookie(sessionToken: string) {
   (await cookies()).set(STAFF_COOKIE, sessionToken, {

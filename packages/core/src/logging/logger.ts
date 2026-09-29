@@ -39,6 +39,8 @@ export const REDACTED_PATHS = [
   '*.guestName',
   'body',
   '*.body',
+  'to',
+  '*.to',
   'text',
   '*.text',
   'link',
@@ -54,6 +56,40 @@ export const REDACTED_PATHS = [
   '*.reason',
   'secretAccessKey',
   '*.secretAccessKey',
+  // Names and addresses of staff and owners, device details, and secrets stored on rows.
+  'displayName',
+  '*.displayName',
+  'staffName',
+  '*.staffName',
+  'staffPhone',
+  '*.staffPhone',
+  'deviceLabel',
+  '*.deviceLabel',
+  'ip',
+  '*.ip',
+  'userAgent',
+  '*.userAgent',
+  'secret',
+  '*.secret',
+  'totpSecret',
+  '*.totpSecret',
+  'passwordHash',
+  '*.passwordHash',
+  'tokenHash',
+  '*.tokenHash',
+  'smtpPassword',
+  '*.smtpPassword',
+  // Two levels down, for values nested in an error or a request context.
+  '*.*.phone',
+  '*.*.phoneE164',
+  '*.*.email',
+  '*.*.fullName',
+  '*.*.token',
+  '*.*.sessionToken',
+  '*.*.url',
+  'req.headers["set-cookie"]',
+  'req.headers["x-forwarded-for"]',
+  'res.headers["set-cookie"]',
   'req.headers.authorization',
   'req.headers.cookie',
 ];
@@ -88,11 +124,16 @@ export function serializeError(err: unknown): unknown {
   return out;
 }
 
-export function createLogger(options: { level?: string; name?: string } = {}): Logger {
-  return pino({
-    level: options.level ?? 'info',
-    ...(options.name ? { name: options.name } : {}),
-    redact: { paths: REDACTED_PATHS, censor: '[redacted]' },
-    serializers: { err: serializeError },
-  });
+export function createLogger(
+  options: { level?: string; name?: string; destination?: { write(line: string): void } } = {},
+): Logger {
+  return pino(
+    {
+      level: options.level ?? 'info',
+      ...(options.name ? { name: options.name } : {}),
+      redact: { paths: REDACTED_PATHS, censor: '[redacted]' },
+      serializers: { err: serializeError },
+    },
+    options.destination,
+  );
 }

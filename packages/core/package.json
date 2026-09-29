@@ -18,6 +18,7 @@
     "fast-xml-parser": "5.11.1",
     "fflate": "0.8.3",
     "libphonenumber-js": "1.13.14",
+    "nodemailer": "10.0.12",
     "otpauth": "9.5.2",
     "pino": "10.3.1",
     "qrcode": "1.5.4",
@@ -26,6 +27,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@types/nodemailer": "8.0.2",
     "@types/qrcode": "1.5.6"
   }
 }

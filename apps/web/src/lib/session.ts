@@ -1,5 +1,5 @@
 import 'server-only';
-import { type Principal, validateSession } from '@gp/core';
+import { clientIp, type Principal, validateSession } from '@gp/core';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
@@ -48,7 +48,7 @@ export async function requireAdminPage(): Promise<Principal> {
 export async function requestMeta() {
   const h = await headers();
   return {
-    ip: h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip') || undefined,
+    ip: clientIp(h.get('x-forwarded-for'), getConfig().TRUSTED_PROXY_HOPS),
     userAgent: h.get('user-agent') ?? undefined,
   };
 }

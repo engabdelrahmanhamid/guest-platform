@@ -50,6 +50,13 @@
       "when": 1790637980268,
       "tag": "0006_check_in",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790686385227,
+      "tag": "0007_staff_security_end",
+      "breakpoints": true
     }
   ]
 }

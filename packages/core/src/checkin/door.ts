@@ -1,5 +1,5 @@
 import { eventMemberships, events, staffSessions } from '@gp/db/schema';
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, ne } from 'drizzle-orm';
 import type { Actor } from '../activity/activity';
 import { type EventRow, requireEventAccess } from '../authorization/authorization';
 import type { DbOrTx } from '../shared/context';
@@ -43,6 +43,8 @@ export function doorCan(member: Pick<DoorMember, 'role' | 'isSupervisor'>, cap: 
 /** Staff sessions work while the event is published and not yet over. */
 const STAFF_EVENT_STATUSES = ['active', 'live'] as const;
 const LAST_SEEN_RESOLUTION_MS = 60_000;
+/** A device stays signed in for at most this long, on the server as well as in its cookie. */
+export const STAFF_SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
 /**
  * Resolves the caller for one event and checks `capability`. Inside a transaction, `forShare`
@@ -70,6 +72,7 @@ export async function requireDoorAccess(
     return { event: access.event, member, actor: access.actor, staffSessionId: null };
   }
 
+  const now = opts.now ?? new Date();
   const base = db
     .select({ session: staffSessions, member: eventMemberships, event: events })
     .from(staffSessions)
@@ -80,6 +83,7 @@ export async function requireDoorAccess(
         eq(staffSessions.tokenHash, sha256(caller.sessionToken)),
         eq(staffSessions.eventId, eventId),
         isNull(staffSessions.endedAt),
+        gt(staffSessions.createdAt, new Date(now.getTime() - STAFF_SESSION_MAX_AGE_SECONDS * 1000)),
         ne(eventMemberships.status, 'removed'),
         eq(eventMemberships.role, 'staff'),
         inArray(events.status, [...STAFF_EVENT_STATUSES]),
@@ -97,7 +101,6 @@ export async function requireDoorAccess(
     displayName: row.member.displayName,
   };
   if (!doorCan(member, capability)) throw new DomainError('forbidden');
-  const now = opts.now ?? new Date();
   if (now.getTime() - row.session.lastSeenAt.getTime() > LAST_SEEN_RESOLUTION_MS) {
     await db
       .update(staffSessions)
@@ -117,6 +120,12 @@ export async function staffSessionEvent(db: DbOrTx, sessionToken: string): Promi
   const [row] = await db
     .select({ eventId: staffSessions.eventId })
     .from(staffSessions)
-    .where(and(eq(staffSessions.tokenHash, sha256(sessionToken)), isNull(staffSessions.endedAt)));
+    .where(
+      and(
+        eq(staffSessions.tokenHash, sha256(sessionToken)),
+        isNull(staffSessions.endedAt),
+        gt(staffSessions.createdAt, new Date(Date.now() - STAFF_SESSION_MAX_AGE_SECONDS * 1000)),
+      ),
+    );
   return row?.eventId ?? null;
 }

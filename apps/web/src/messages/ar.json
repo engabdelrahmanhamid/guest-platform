@@ -1053,7 +1053,7 @@
     "companionsOf": "{count} من {allowed}",
     "attendance": {
       "not_arrived": "لم يصل",
-      "partial": "حضور جزئي",
+      "partial": "دعوات بحضور جزئي",
       "complete": "اكتمل الحضور",
       "count": "{inside} من {expected}"
     }
@@ -1522,9 +1522,9 @@
       "ofExpected": "من {expected} متوقع",
       "invited": "من المدعوين",
       "walkIns": "بدون دعوة",
-      "complete": "اكتمل حضورهم",
+      "complete": "دعوات اكتمل حضورها",
       "partial": "حضور جزئي",
-      "notArrived": "لم يصلوا",
+      "notArrived": "دعوات لم يصل أحد منها",
       "pending": "لم يردّوا",
       "parties": "دعوات مؤكدة"
     },

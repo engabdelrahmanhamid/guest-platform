@@ -87,4 +87,5 @@ export const staffSessionEndReason = pgEnum('staff_session_end_reason', [
   'resent',
   'member_removed',
   'signed_out',
+  'security',
 ]);

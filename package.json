@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @gp/web --filter @gp/worker dev",
     "build": "pnpm -r build",
+    "build:hostinger": "node scripts/build-hostinger.mjs",
+    "start:hostinger": "node dist/hostinger/server.js",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -17,6 +19,7 @@
     "db:generate": "pnpm --filter @gp/db generate",
     "db:migrate": "pnpm --filter @gp/db migrate",
     "admin:grant": "pnpm --filter @gp/worker exec tsx src/cli/grant-admin.ts",
+    "pilot:check": "pnpm --filter @gp/worker exec tsx src/cli/pilot-check.ts",
     "demo:seed": "pnpm --filter @gp/worker exec tsx src/cli/seed-demo.ts"
   },
   "devDependencies": {

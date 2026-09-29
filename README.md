@@ -50,6 +50,14 @@ pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build
 Database tests run against `DATABASE_URL` (migrated) and are skipped without it. They isolate
 themselves with unique accounts rather than truncating tables.
 
+Pilot preparation tools (see `docs/pilot-readiness.md`):
+
+- `REHEARSAL=1 pnpm test rehearsal` runs an event-day rehearsal with a messy 400-guest spreadsheet,
+  four scanners at once, walk-ins, corrections and a revoked device, and prints a reconciliation
+  report. It is skipped otherwise.
+- `pnpm pilot:check [--url=…] [--mail-to=…]` checks a deployed environment.
+- `SOURCE_DATABASE_URL=… scripts/restore-check.sh` proves a backup restores and reconciles.
+
 ## Layout
 
 ```

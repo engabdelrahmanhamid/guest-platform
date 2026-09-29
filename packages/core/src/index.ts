@@ -4,10 +4,13 @@ export { createLogger, REDACTED_PATHS, type Logger } from './logging/logger';
 export { DomainError, isDomainError, type DomainErrorCode } from './shared/errors';
 export type { CoreContext, DbOrTx, Tx } from './shared/context';
 export { normalizePhone } from './shared/phone';
+export { clientIp } from './shared/client-ip';
+export { decrypt, encrypt, randomToken } from './shared/crypto';
 
 export * from './identity/auth';
 export * from './identity/totp';
 export { type AccountMailer, MemoryMailer, type SentMail } from './identity/mailer';
+export { SmtpMailer, type SmtpMailerConfig } from './identity/smtp-mailer';
 
 export { getPersonalWorkspaceId } from './workspaces/workspaces';
 export * from './authorization/authorization';
@@ -33,3 +36,4 @@ export { formatPhone, parsePhone, phoneSearchDigits, type PhoneProblem } from '.
 export { searchForm } from './shared/text';
 export { purgeRateLimits } from './identity/rate-limit';
 export * from './checkin';
+export * from './messaging';

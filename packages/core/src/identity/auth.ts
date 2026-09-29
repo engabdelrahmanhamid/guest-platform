@@ -83,6 +83,11 @@ async function createSession(
   return { token, expiresAt };
 }
 
+/** Rate-limit buckets hold a hash, not the owner's address. */
+function emailKey(address: string): string {
+  return sha256(address).toString('hex').slice(0, 32);
+}
+
 async function issueToken(
   db: DbOrTx,
   userId: string,
@@ -91,6 +96,18 @@ async function issueToken(
   now: Date,
 ): Promise<string> {
   const token = randomToken();
+  // One live link per purpose: asking again cancels the earlier ones, so a forgotten or
+  // forwarded email can't be used after a newer request or a completed reset.
+  await db
+    .update(authTokens)
+    .set({ usedAt: now })
+    .where(
+      and(
+        eq(authTokens.userId, userId),
+        eq(authTokens.purpose, purpose),
+        isNull(authTokens.usedAt),
+      ),
+    );
   await db.insert(authTokens).values({
     id: newId(),
     userId,
@@ -156,7 +173,7 @@ export async function signUp(ctx: CoreContext, input: unknown, meta: Meta = {}) 
 export async function login(ctx: CoreContext, input: unknown, meta: Meta = {}) {
   const data = parseInput(loginSchema, input);
   const now = ctx.now();
-  await consumeRateLimit(ctx.db, `login:email:${data.email}`, 10, 900, now);
+  await consumeRateLimit(ctx.db, `login:email:${emailKey(data.email)}`, 10, 900, now);
   if (meta.ip) await consumeRateLimit(ctx.db, `login:ip:${meta.ip}`, 50, 900, now);
 
   const [user] = await ctx.db.select().from(users).where(eq(users.email, data.email));
@@ -288,15 +305,19 @@ export async function resendEmailVerification(ctx: CoreContext, userId: string):
 export async function requestPasswordReset(ctx: CoreContext, input: unknown, meta: Meta = {}) {
   const { email: address } = parseInput(z.object({ email }), input);
   const now = ctx.now();
-  await consumeRateLimit(ctx.db, `reset:email:${address}`, 5, 3600, now);
+  await consumeRateLimit(ctx.db, `reset:email:${emailKey(address)}`, 5, 3600, now);
   if (meta.ip) await consumeRateLimit(ctx.db, `reset:ip:${meta.ip}`, 20, 3600, now);
   const [user] = await ctx.db.select().from(users).where(eq(users.email, address));
   if (!user || user.status !== 'active') return;
   const token = await issueToken(ctx.db, user.id, 'password_reset', PASSWORD_RESET_TTL_MS, now);
-  await ctx.mailer.sendPasswordReset(
-    { email: user.email, name: user.fullName },
-    `${ctx.appBaseUrl}/reset-password?token=${token}`,
-  );
+  // Not awaited: sending takes far longer than the "no such account" path, and the difference
+  // would tell a caller which addresses are registered. A failed send is the mailer's to log.
+  void ctx.mailer
+    .sendPasswordReset(
+      { email: user.email, name: user.fullName },
+      `${ctx.appBaseUrl}/reset-password?token=${token}`,
+    )
+    .catch(() => undefined);
 }
 
 /** Sets a new password and signs the user out everywhere. */

@@ -8,6 +8,7 @@ import {
   LocalDiskStorage,
   type Logger,
   MemoryMailer,
+  SmtpMailer,
   type ObjectStorage,
   S3Storage,
 } from '@gp/core';
@@ -36,18 +37,24 @@ export function getPool(): pg.Pool {
 
 /**
  * Development keeps account emails in memory and shows them at /dev/outbox, so links (which
- * carry tokens) are never written to logs. Production needs a mail provider chosen with the
- * hosting provider; until then emails are dropped with a warning that names no token.
+ * carry tokens) are never written to logs. Production sends over SMTP (see createMailer).
  */
 const devOutbox = new MemoryMailer();
 
-class UnconfiguredMailer implements AccountMailer {
-  async sendEmailVerification() {
-    getLogger().warn({ kind: 'email_verification' }, 'account email provider not configured');
-  }
-  async sendPasswordReset() {
-    getLogger().warn({ kind: 'password_reset' }, 'account email provider not configured');
-  }
+/** Production sends account email over SMTP (configuration requires it); development keeps it. */
+function createMailer(cfg: AppConfig): AccountMailer {
+  if (cfg.NODE_ENV !== 'production') return devOutbox;
+  return new SmtpMailer(
+    {
+      host: cfg.SMTP_HOST!,
+      port: cfg.SMTP_PORT,
+      secure: cfg.SMTP_SECURE,
+      user: cfg.SMTP_USER!,
+      password: cfg.SMTP_PASSWORD!,
+      from: cfg.MAIL_FROM!,
+    },
+    getLogger(),
+  );
 }
 
 export function getDevOutbox(): MemoryMailer | null {
@@ -75,7 +82,7 @@ export function getCoreContext(): CoreContext {
     db = createDatabase(getPool());
     ctx = {
       db,
-      mailer: cfg.NODE_ENV === 'production' ? new UnconfiguredMailer() : devOutbox,
+      mailer: createMailer(cfg),
       storage: createStorage(cfg),
       encryptionKey: cfg.APP_ENCRYPTION_KEY,
       appBaseUrl: cfg.APP_BASE_URL,

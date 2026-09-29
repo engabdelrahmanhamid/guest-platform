@@ -7,6 +7,13 @@ const valid = {
   APP_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
 };
 
+const smtp = {
+  SMTP_HOST: 'smtp.example.sa',
+  SMTP_USER: 'user',
+  SMTP_PASSWORD: 'pw',
+  MAIL_FROM: 'Guest Platform <no-reply@example.sa>',
+};
+
 describe('loadConfig', () => {
   it('applies defaults', () => {
     const config = loadConfig(valid);
@@ -43,7 +50,32 @@ describe('loadConfig', () => {
       S3_BUCKET: 'guest-media',
       S3_ACCESS_KEY_ID: 'id',
       S3_SECRET_ACCESS_KEY: 'secret',
+      ...smtp,
     });
     expect(s3.S3_FORCE_PATH_STYLE).toBe(true);
+  });
+
+  it('refuses development mode on a public https address', () => {
+    expect(() => loadConfig({ ...valid, APP_BASE_URL: 'https://app.example.sa' })).toThrow(
+      /NODE_ENV/,
+    );
+    expect(loadConfig(valid).TRUSTED_PROXY_HOPS).toBe(1);
+  });
+
+  it('needs a mail provider in production, not in development', () => {
+    expect(loadConfig(valid).SMTP_HOST).toBeUndefined();
+    const prod = {
+      ...valid,
+      APP_BASE_URL: 'https://app.example.sa',
+      NODE_ENV: 'production',
+      STORAGE_DRIVER: 's3',
+      S3_REGION: 'riyadh-1',
+      S3_BUCKET: 'guest-media',
+      S3_ACCESS_KEY_ID: 'id',
+      S3_SECRET_ACCESS_KEY: 'secret',
+    };
+    expect(() => loadConfig(prod)).toThrow(/SMTP_HOST/);
+    const cfg = loadConfig({ ...prod, ...smtp });
+    expect(cfg).toMatchObject({ SMTP_PORT: 465, SMTP_SECURE: true });
   });
 });

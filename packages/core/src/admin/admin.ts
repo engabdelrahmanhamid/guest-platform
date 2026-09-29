@@ -1,5 +1,5 @@
-import { adminAuditLog, events, platformSettings, users } from '@gp/db/schema';
-import { desc, eq, ilike, or, sql } from 'drizzle-orm';
+import { adminAuditLog, events, platformSettings, staffSessions, users } from '@gp/db/schema';
+import { and, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordActivity } from '../activity/activity';
 import { requireAdmin } from '../authorization/authorization';
@@ -97,7 +97,9 @@ export async function setUserDisabled(
 
 /**
  * Disables or re-enables an event. A disabled event keeps its status; owners can read it but
- * can't change it, and the scheduler skips it.
+ * can't change it, and the scheduler skips it. Disabling is a security action, so it ends every
+ * staff device session for good: re-enabling the event does not bring them back, the owner
+ * sends new access links.
  */
 export async function setEventDisabled(
   ctx: CoreContext,
@@ -122,6 +124,12 @@ export async function setEventDisabled(
         updatedAt: now,
       })
       .where(eq(events.id, eventId));
+    if (disabled) {
+      await tx
+        .update(staffSessions)
+        .set({ endedAt: now, endReason: 'security' })
+        .where(and(eq(staffSessions.eventId, eventId), isNull(staffSessions.endedAt)));
+    }
     await audit(
       tx,
       admin.user.id,

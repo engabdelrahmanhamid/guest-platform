@@ -14,12 +14,13 @@ import type { EventRow } from '../authorization/authorization';
 import { lifecycleTimes } from '../events/lifecycle';
 import { findDuplicates, type DuplicateGuest } from '../guests/guests';
 import { guestNameSchema, guestPhoneSchema, MAX_COMPANIONS } from '../guests/schemas';
+import { consumeRateLimit } from '../identity/rate-limit';
 import { createGuestLifecycle } from '../lifecycle/records';
 import { applyRsvp } from '../lifecycle/rsvp';
 import type { CoreContext, DbOrTx } from '../shared/context';
 import { DomainError } from '../shared/errors';
 import { newId } from '../shared/ids';
-import { phoneSearchDigits } from '../shared/phone';
+import { parsePhone, phoneSearchDigits } from '../shared/phone';
 import { escapeLike, searchForm } from '../shared/text';
 import { isPublicToken, publicTokenHash } from '../shared/tokens';
 import { parseInput } from '../shared/validation';
@@ -253,20 +254,38 @@ export interface DoorSearchRow {
   attendance: AttendanceStatus;
 }
 
-/** Manual search by name or phone digits; at most 20 rows, active guests first. */
+const SEARCH_LIMIT = 90;
+
+/** Manual search by name, last four phone digits or full number; 20 rows, active guests first. */
 export async function searchDoor(
   ctx: CoreContext,
   caller: DoorCaller,
   eventId: string,
   query: string,
 ): Promise<DoorSearchRow[]> {
-  await requireDoorAccess(ctx.db, caller, eventId, 'scan', { now: ctx.now() });
+  const access = await requireDoorAccess(ctx.db, caller, eventId, 'scan', { now: ctx.now() });
+  // Search is a person-at-a-desk tool. The cap stops a device from scripting it.
+  await consumeRateLimit(
+    ctx.db,
+    `door:search:${access.staffSessionId ?? (caller.kind === 'owner' ? caller.userId : '')}`,
+    SEARCH_LIMIT,
+    60,
+    ctx.now(),
+  );
   const q = query.trim().slice(0, 100);
   if (!q) return [];
   const digits = phoneSearchDigits(q);
   const name = searchForm(q);
+  // A number matches only by the last four digits (already shown masked) or as a whole number.
+  // Any other digit run would let a device grow a partial number into a full one, one digit at a
+  // time, and read a guest's phone that staff are never shown.
+  const whole = digits && digits.length > 4 ? parsePhone(q) : null;
   const match: SQL | undefined = digits
-    ? sql`${guests.phoneE164} LIKE ${`%${digits}%`}`
+    ? digits.length === 4
+      ? sql`${guests.phoneE164} LIKE ${`%${digits}`}`
+      : whole?.ok
+        ? sql`${guests.phoneE164} = ${whole.e164}`
+        : undefined
     : name.length >= 2
       ? sql`${guests.nameSearch} LIKE ${`%${escapeLike(name)}%`}`
       : undefined;
